@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from "react"
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
 import { cn } from "@prototypes/ui/lib/utils"
 import { Shape, type ShapeKind } from "@prototypes/ui/components/shape"
@@ -36,74 +36,121 @@ function Gallery() {
   )
 }
 
-/* The title, a rule, and three small shapes sitting on the rule at the right. Each load shuffles their
-   order; drag them anywhere in the header, or tap one to turn it. */
-type Piece = { kind: ShapeKind; size: number; dx: number; dy: number; turn: number; z: number }
+/* The title, a rule, and three small shapes sitting on the rule at the right.
+   Their order is shuffled on each load, and again whenever you click one. */
+type Piece = { kind: ShapeKind; size: number }
 // Optically matched, not equal: a circle reads smaller than a square of the same width, and a triangle
 // fills only half its box, so each gets a little more.
-const PIECES: Pick<Piece, "kind" | "size">[] = [
+const PIECES: Piece[] = [
   { kind: "circle", size: 24 },
   { kind: "square", size: 22 },
   { kind: "triangle", size: 26 },
 ]
-const shuffled = (): Piece[] =>
-  [...PIECES].sort(() => Math.random() - 0.5).map((p, i) => ({ ...p, dx: 0, dy: 0, turn: 0, z: i + 1 }))
+const shuffle = (ps: Piece[]) => [...ps].sort(() => Math.random() - 0.5)
+const order = (ps: Piece[]) => ps.map((p) => p.kind).join()
 
 function Header() {
-  const [pieces, setPieces] = useState(shuffled)
-  const area = useRef<HTMLElement>(null)
-  const drag = useRef<{ i: number; grabX: number; grabY: number; baseX: number; baseY: number; half: number; moved: boolean } | null>(null)
+  const [pieces, setPieces] = useState(() => shuffle(PIECES))
+  const els = useRef(new Map<ShapeKind, HTMLButtonElement>())
+  const before = useRef<Map<ShapeKind, DOMRect> | null>(null)
 
-  const update = (i: number, patch: (p: Piece, all: Piece[]) => Partial<Piece>) =>
-    setPieces((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch(p, ps) } : p)))
+  // always land on a different order, so every click visibly does something
+  const reshuffle = () => {
+    before.current = new Map([...els.current].map(([kind, el]) => [kind, el.getBoundingClientRect()]))
+    setPieces((ps) => {
+      let next = shuffle(ps)
+      while (order(next) === order(ps)) next = shuffle(ps)
+      return next
+    })
+  }
 
-  const onDown = (i: number) => (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    const r = e.currentTarget.getBoundingClientRect()
-    const cx = r.left + r.width / 2
-    const cy = r.top + r.height / 2
-    // base = where the centre would be with no drag offset; grab = pointer's offset from the centre
-    drag.current = { i, grabX: e.clientX - cx, grabY: e.clientY - cy, baseX: cx - pieces[i].dx, baseY: cy - pieces[i].dy, half: r.width / 2, moved: false }
-    update(i, (_, all) => ({ z: Math.max(...all.map((q) => q.z)) + 1 })) // grabbed piece goes on top
-  }
-  const onMove = (e: React.PointerEvent) => {
-    const d = drag.current
-    if (!d) return
-    d.moved = true
-    const h = area.current!.getBoundingClientRect()
-    const cx = clamp(e.clientX - d.grabX, h.left + d.half, h.right - d.half)
-    const cy = clamp(e.clientY - d.grabY, h.top + d.half, h.bottom - d.half)
-    update(d.i, () => ({ dx: cx - d.baseX, dy: cy - d.baseY }))
-  }
-  const onUp = () => {
-    const d = drag.current
-    drag.current = null
-    if (d && !d.moved) update(d.i, (p) => ({ turn: p.turn + 1 }))
-  }
+  // FLIP: after the reorder, start each shape where it was and animate it home. Shapes moving right hop
+  // over, shapes moving left pass under, like a shell game.
+  useLayoutEffect(() => {
+    const prev = before.current
+    before.current = null
+    if (!prev || matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    els.current.forEach((el, kind) => {
+      const from = prev.get(kind)
+      if (!from) return
+      el.getAnimations().forEach((a) => a.cancel()) // a quick second click starts from where it is now
+      const to = el.getBoundingClientRect()
+      const dx = from.left - to.left
+      const dy = from.top - to.top
+      if (!dx && !dy) return
+      const arc = Math.min(Math.abs(dx) * 0.4, 22) * (dx < 0 ? -1 : 1)
+      el.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px)` },
+          { transform: `translate(${dx / 2}px, ${dy / 2 + arc}px)` },
+          { transform: "translate(0, 0)" },
+        ],
+        { duration: 520, easing: "cubic-bezier(.45,0,.25,1)" },
+      )
+    })
+  }, [pieces])
 
   return (
-    <header ref={area} className="relative border-b-2 border-ink pt-20 pb-8 sm:pt-28">
+    <header className="relative border-b-2 border-ink pt-20 pb-14 sm:pt-28 sm:pb-12">
       <h1 className="text-5xl leading-none font-semibold tracking-tight sm:text-6xl">Field Notes</h1>
-      <p className="mt-4 max-w-lg text-muted-foreground">Interactive design experiments</p>
+      <p className="mt-4 max-w-lg text-muted-foreground">
+        <ExternalLink href="https://markkaylor.com/">Mark Kaylor's</ExternalLink>{" "}
+        Interactive design experiments. Always in <span className="italic">process.</span></p>
 
       <div className="absolute right-2 bottom-2 flex items-center gap-3">
-        {pieces.map((p, i) => (
-          <Shape
+        {pieces.map((p) => (
+          <button
             key={p.kind}
-            kind={p.kind}
-            onPointerDown={onDown(i)}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            className={cn("relative cursor-grab touch-none transition-[rotate,scale] duration-300 select-none hover:scale-110 active:cursor-grabbing", SPRING)}
-            style={{ width: p.size, height: p.size, translate: `${p.dx}px ${p.dy}px`, rotate: `${p.turn * 90}deg`, zIndex: p.z }}
-          />
+            ref={(el) => { if (el) els.current.set(p.kind, el); else els.current.delete(p.kind) }}
+            onClick={reshuffle}
+            aria-label="Shuffle the shapes"
+            className="grid cursor-pointer place-items-center outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue"
+          >
+            <Shape
+              kind={p.kind}
+              className={cn("transition-[scale] duration-300 hover:scale-110", SPRING)}
+              style={{ width: p.size, height: p.size }}
+            />
+          </button>
         ))}
       </div>
     </header>
   )
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+/* Opens in a new tab. The ↗ slides out right after the text on hover/focus. It's the only place the site
+   uses it, and it always means "leaves the site". */
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="group/ext text-foreground underline decoration-1 underline-offset-4 outline-none hover:text-red focus-visible:text-blue"
+    >
+      {children}
+      {/* zero width at rest, so the line reads normally until you point at the link */}
+      <span
+        aria-hidden
+        className={cn(
+          // the gap opens smoothly (no overshoot, so the text glides rather than bounces)
+          "inline-block w-0 overflow-hidden align-[0.05em] transition-[width] duration-300 ease-out motion-reduce:transition-none",
+          "group-hover/ext:w-[0.75em] group-focus-visible/ext:w-[0.75em]",
+        )}
+      >
+        {/* ...and the arrow drifts in from the bottom-left a beat behind it */}
+        <ArrowUpRightIcon
+          className={cn(
+            "ml-[0.1em] size-[0.65em] -translate-x-[0.3em] translate-y-[0.2em] stroke-[2.5] opacity-0 transition-[translate,opacity] duration-300 ease-out motion-reduce:transition-none",
+            "group-hover/ext:translate-0 group-hover/ext:opacity-100 group-hover/ext:delay-75",
+            "group-focus-visible/ext:translate-0 group-focus-visible/ext:opacity-100",
+          )}
+        />
+      </span>
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
+  )
+}
 
 /* ---------- one field note ---------- */
 function NoteCard({ p, n, kind }: { p: Prototype; n: number; kind: ShapeKind }) {
@@ -143,10 +190,7 @@ function NoteCard({ p, n, kind }: { p: Prototype; n: number; kind: ShapeKind }) 
           {pad(n)}
           {p.created && <span className="ml-auto">{formatDate(p.created)}</span>}
         </div>
-        <h2 className="flex items-center gap-1.5 text-xl font-semibold tracking-tight">
-          {p.title}
-          <ArrowUpRightIcon className="size-4 opacity-0 transition-[opacity,translate] duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100" />
-        </h2>
+        <h2 className="text-xl font-semibold tracking-tight">{p.title}</h2>
         <p className="line-clamp-2 text-sm text-muted-foreground">{p.description}</p>
         {!!p.tags.length && <p className="text-xs text-muted-foreground">{p.tags.join(" · ")}</p>}
       </div>

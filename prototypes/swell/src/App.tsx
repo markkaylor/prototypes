@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react"
 import { CircleHelpIcon } from "lucide-react"
-import { Badge } from "@prototypes/ui/components/badge"
 import { Button } from "@prototypes/ui/components/button"
 import { Kbd } from "@prototypes/ui/components/kbd"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@prototypes/ui/components/select"
@@ -113,7 +112,6 @@ function Header({ s }: { s: State }) {
     <header className="flex items-center justify-between gap-4 border-b px-4 py-2.5">
       <div className="flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
         Swell
-        <Badge variant="secondary">field note</Badge>
       </div>
       <div className="flex items-center gap-1">
         <span

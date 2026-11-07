@@ -52,9 +52,10 @@ Use `<Shape kind="circle" />` from `@prototypes/ui/components/shape`, which appl
 
 - **Playful and mechanical, like toy blocks**, but small: the shapes are the toys. Motion is snappy, with a little overshoot (`ease-[cubic-bezier(.3,1.6,.5,1)]`, 200–300ms).
 - **Hover vocabulary:** a square morphs into a circle, a circle into a square, a triangle turns. A card lifts onto a hard ink shadow. An arrow nudges in.
-- **Somewhere to fiddle:** the three small shapes in the site header can be dragged anywhere in it, and tapped to turn.
+- **Somewhere to fiddle:** clicking any of the three small shapes in the site header shuffles their order (it also shuffles on each load).
 - Respect `prefers-reduced-motion` (`motion-reduce:transition-none`). The design should still look complete when nothing moves.
 - Focus is visible: a blue outline or blue text, never removed.
+- **↗ means "leaves the site".** External links open in a new tab and show the arrow on hover or focus. Internal links, like field note cards, never show it.
 
 ## Prototypes vs. the site
 
