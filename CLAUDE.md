@@ -6,6 +6,7 @@ Every prototype is built with this stack, whatever a skill's default shape says:
 - **Tailwind CSS** for all styling.
 - **shadcn/ui** for UI components. Shared components live in one workspace package, `packages/ui/` (`@prototypes/ui`), which every prototype imports. Add new components there with the shadcn CLI (monorepo mode) so all prototypes can reuse them. A component that only one prototype needs stays in that prototype's folder.
 - **pnpm workspaces** connect `site`, `prototypes/*` and `packages/*`.
+- **Design:** every prototype and the site follow `docs/design-guidelines.md`. That means minimalism with Bauhaus playfulness: mostly paper and ink, with red, blue and yellow (and the circle, square and triangle) as small accents. Jost, square corners, thin ink rules, no dark mode. Visitor-facing copy says "field notes", not "prototypes".
 
 ## Site
 

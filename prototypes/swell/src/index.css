@@ -1,0 +1,17 @@
+@import "@prototypes/ui/globals.css";
+
+/* CC colours follow the data order in docs/design-guidelines.md: CC1 = red, CC11 = blue. */
+@theme inline {
+  --color-cc1: var(--red);
+  --color-cc11: var(--blue);
+}
+
+/* Full-screen XY grid: lines every 12.5%. */
+@utility bg-grid {
+  --grid-line: color-mix(in oklab, var(--ink) 14%, transparent);
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 12.5% 12.5%;
+  background-position: 0 -1px;
+}

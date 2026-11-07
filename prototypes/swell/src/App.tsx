@@ -4,7 +4,6 @@ import { Badge } from "@prototypes/ui/components/badge"
 import { Button } from "@prototypes/ui/components/button"
 import { Kbd } from "@prototypes/ui/components/kbd"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@prototypes/ui/components/select"
-import { ThemeToggle } from "@prototypes/ui/components/theme-toggle"
 import { ToggleGroup, ToggleGroupItem } from "@prototypes/ui/components/toggle-group"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@prototypes/ui/components/tooltip"
 import { cn } from "@prototypes/ui/lib/utils"
@@ -71,29 +70,29 @@ function Pad({ s, ref, onClick }: { s: State; ref: React.Ref<HTMLDivElement>; on
   const y = (s.cc1 / 127) * 100
   return (
     <div ref={ref} onClick={onClick} className="bg-grid relative flex-1 cursor-crosshair overflow-hidden">
-      <div className="pointer-events-none absolute bottom-0 left-0 bg-foreground/5" style={{ width: `${x}%`, height: `${y}%` }} />
+      <div className="pointer-events-none absolute bottom-0 left-0 bg-yellow/25" style={{ width: `${x}%`, height: `${y}%` }} />
       {/* CC1 rides the horizontal line, CC11 the vertical one; the inactive axis dims */}
       <div
         className={cn("pointer-events-none absolute inset-x-0 transition-opacity", s.mode === "cc11" ? "opacity-25" : "opacity-100")}
         style={{ top: `${100 - y}%` }}
       >
-        <div className="h-px bg-cc1" />
+        <div className="h-0.5 bg-cc1" />
         <span className="absolute bottom-2 left-4 text-xs font-medium text-cc1">CC1 · Modulation</span>
       </div>
       <div
         className={cn("pointer-events-none absolute inset-y-0 transition-opacity", s.mode === "cc1" ? "opacity-25" : "opacity-100")}
         style={{ left: `${x}%` }}
       >
-        <div className="h-full w-px bg-cc11" />
+        <div className="h-full w-0.5 bg-cc11" />
         <span className="absolute bottom-4 left-2 text-xs font-medium whitespace-nowrap text-cc11">CC11 · Expression</span>
       </div>
       {/* a dot when both axes are live, a bar along the free axis otherwise */}
       <div
         className={cn(
-          "pointer-events-none absolute -translate-1/2 bg-foreground shadow-md ring-6 ring-foreground/10 transition-[width,height,border-radius] duration-200",
+          "pointer-events-none absolute -translate-1/2 bg-ink transition-[width,height,border-radius] duration-200",
           s.mode === "both" && "size-5 rounded-full",
-          s.mode === "cc1" && "h-9 w-2 rounded-full",
-          s.mode === "cc11" && "h-2 w-9 rounded-full",
+          s.mode === "cc1" && "h-9 w-2",
+          s.mode === "cc11" && "h-2 w-9",
         )}
         style={{ left: `${x}%`, top: `${100 - y}%` }}
       />
@@ -101,7 +100,7 @@ function Pad({ s, ref, onClick }: { s: State; ref: React.Ref<HTMLDivElement>; on
   )
 }
 
-/* ---------- header: output, help, theme ---------- */
+/* ---------- header: output, help ---------- */
 const STATUS_TEXT: Record<State["status"], string> = {
   pending: "Connecting MIDI…",
   ok: "No MIDI outputs",
@@ -112,14 +111,14 @@ const STATUS_TEXT: Record<State["status"], string> = {
 function Header({ s }: { s: State }) {
   return (
     <header className="flex items-center justify-between gap-4 border-b px-4 py-2.5">
-      <div className="flex items-center gap-2 text-sm font-semibold">
-        Dynamics Pad
-        <Badge variant="secondary">prototype</Badge>
+      <div className="flex items-center gap-2 text-sm font-semibold tracking-wide uppercase">
+        Swell
+        <Badge variant="secondary">field note</Badge>
       </div>
       <div className="flex items-center gap-1">
         <span
           title={s.outputId ? "Sending MIDI" : "Not sending"}
-          className={cn("mr-2 size-2 rounded-full", s.outputId ? "bg-emerald-500" : "bg-muted-foreground/40")}
+          className={cn("mr-2 size-2 rounded-full", s.outputId ? "bg-red" : "bg-muted-foreground/40")}
         />
         <Select value={s.outputId ?? ""} onValueChange={setOutput} disabled={!s.outputs.length}>
           <SelectTrigger size="sm" className="mr-1 w-56" aria-label="MIDI output">
@@ -130,7 +129,6 @@ function Header({ s }: { s: State }) {
           </SelectContent>
         </Select>
         <Help />
-        <ThemeToggle />
       </div>
     </header>
   )

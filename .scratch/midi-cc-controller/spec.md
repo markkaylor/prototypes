@@ -1,4 +1,4 @@
-# Dynamics Pad: PWA MIDI controller for CC1 + CC11
+# Swell (formerly Dynamics Pad): PWA MIDI controller for CC1 + CC11
 
 Status: needs-triage
 
@@ -9,7 +9,7 @@ Let orchestral composers ride CC1 (modulation/dynamics) and CC11 (expression) to
 Prototype branch: `prototype/midi-cc` (commit ffb068f), folder `midi-cc-prototype/`.
 Question: which Mac-trackpad interaction feels right for riding CC1 + CC11?
 
-- **Chosen interaction: XY pad (variant C).** Click to capture the pointer (pointer lock). Moving vertically sets CC1 and moving horizontally sets CC11, using relative movement so values never jump. Shift gives finer control (⅓ speed), tapping ⌥ cycles the axis mode (CC1 + CC11 by default → CC1 → CC11), and Esc releases the pointer. The whole screen is the grid. Built as `prototypes/dynamics-pad/`.
+- **Chosen interaction: XY pad (variant C).** Click to capture the pointer (pointer lock). Moving vertically sets CC1 and moving horizontally sets CC11, using relative movement so values never jump. Shift gives finer control (⅓ speed), tapping ⌥ cycles the axis mode (CC1 + CC11 by default → CC1 → CC11), and Esc releases the pointer. The whole screen is the grid. Built as `prototypes/swell/`.
 - **Worth adding: dynamics key ladder (variant B).** Keys 1–8 glide CC11 to ppp…fff (16/32/…/127). Holding W/S swells or fades CC11.
 - **Rejected: two-finger scroll for CC11 (variant A).** You can't move CC1 and CC11 at the same time, and scroll momentum overshoots.
 
