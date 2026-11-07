@@ -19,3 +19,9 @@ MIDI to your DAW on macOS: Audio MIDI Setup → MIDI Studio → IAC Driver → "
 - **C (XY pad) wins**: one finger rides CC1 (vertical) and CC11 (horizontal) at the same time.
 - **B (Trackpad + keys) is worth keeping**: the ppp…fff dynamics ladder with gliding to each level is a strong idea, a candidate to add on top of C.
 - **A (Faders + scroll) is rejected**: CC1 and CC11 can't move at the same time, and scroll momentum overshoots.
+
+## Iteration 2: C only
+
+- Variants A and B were removed (they're still in commit ffb068f).
+- The whole screen is the XY grid, and the value readouts ride along the crosshair lines.
+- Tap ⌥ (or click the mode pill) to cycle the axis mode: **CC1 + CC11** (default) → CC1 → CC11. A "tap" means press and release ⌥ without another key in between.
