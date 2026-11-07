@@ -1,0 +1,397 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Question: "Which Mac-trackpad interaction feels right for riding CC1 + CC11?"
+  Three variants on one page, switchable via ?variant=A|B|C and the floating bottom bar (← / → keys).
+    A  Faders + scroll   — trackpad slide = CC1, two-finger scroll = CC11 (one hand, alternating)
+    B  Trackpad + keys   — trackpad slide = CC1, keyboard dynamics ladder = CC11 (two hands, simultaneous)
+    C  XY pad            — trackpad Y = CC1, trackpad X = CC11 (one finger, simultaneous)
+  Assumption: macOS laptop trackpad in Chrome/Edge (Web MIDI). Browsers can't see individual fingers on a
+  Mac trackpad, so "left half / right half" multi-touch isn't possible; these are the closest real options.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0c0e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>Dynamics Pad</title>
+<style>
+:root{
+  --bg:#0b0c0e; --surface:#121317; --raise:#191b20; --line:#23262c; --line2:#2e323a;
+  --text:#ecedef; --muted:#8b9099; --faint:#545962;
+  --cc1:#f0b44c; --cc11:#5fd0c2;
+  --r:16px;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+body{display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;user-select:none;-webkit-user-select:none}
+.tnum{font-variant-numeric:tabular-nums}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* header */
+.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.logo{width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,var(--cc1),var(--cc11))}
+.tag{font-size:11px;font-weight:500;color:var(--muted);border:1px solid var(--line2);padding:2px 8px;border-radius:99px}
+.io{display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);margin-right:4px;transition:background .2s}
+.dot.ok{background:#4ade80;box-shadow:0 0 0 3px #4ade8026}
+.dot.warn{background:#f59e0b;box-shadow:0 0 0 3px #f59e0b26}
+select{appearance:none;-webkit-appearance:none;font:inherit;font-size:13px;color:var(--text);background:var(--surface);
+  border:1px solid var(--line2);border-radius:9px;padding:7px 30px 7px 11px;cursor:pointer;max-width:260px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238b9099' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center}
+select:focus-visible{outline:2px solid var(--line2);outline-offset:2px}
+
+/* stage + footer */
+#stage{position:relative;min-height:0;display:flex}
+.readout{display:flex;flex-wrap:wrap;gap:6px 22px;padding:10px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.readout b{color:var(--text);font-weight:500}
+.readout .c1{color:var(--cc1)} .readout .c11{color:var(--cc11)}
+
+/* shared engage hint */
+.engage{position:absolute;left:50%;top:18px;transform:translateX(-50%);z-index:5;font-size:12.5px;color:var(--muted);
+  background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line2);
+  padding:7px 14px;border-radius:99px;white-space:nowrap;pointer-events:none;transition:color .2s,border-color .2s}
+.engage b{color:var(--text);font-weight:500}
+.engage.live{color:var(--text);border-color:color-mix(in srgb,#4ade80 45%,var(--line2))}
+.engage.live::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#4ade80;margin-right:8px;vertical-align:1px}
+kbd{font:500 11px ui-monospace,Menlo,monospace;color:var(--text);background:var(--raise);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:1px 5px}
+
+/* big numbers */
+.big{font-weight:250;font-size:clamp(44px,8vw,104px);line-height:.9;letter-spacing:-.045em}
+.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.lbl i{font-style:normal;color:var(--c)}
+.how{font-size:13px;color:var(--faint);margin-top:6px}
+
+/* ---------- A: faders + scroll ---------- */
+.va{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:66px 24px 96px;cursor:pointer}
+.fader{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:24px 26px}
+.fader .fill{position:absolute;inset:0;transform-origin:bottom;background:linear-gradient(to top,color-mix(in srgb,var(--c) 26%,transparent),color-mix(in srgb,var(--c) 6%,transparent))}
+.fader .cap{position:absolute;left:0;right:0;height:2px;background:var(--c);box-shadow:0 0 22px var(--c)}
+.fader .ticks{position:absolute;inset:0;background:repeating-linear-gradient(to top,transparent 0 calc(25% - 1px),var(--line) calc(25% - 1px) 25%)}
+.fader > *:not(.fill):not(.cap):not(.ticks){position:relative}
+.fader .gesture{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+.fingers{display:flex;gap:4px}.fingers span{width:9px;height:14px;border-radius:5px;border:1.5px solid var(--c)}
+.chip{pointer-events:auto;font:inherit;font-size:12px;color:var(--muted);background:var(--raise);border:1px solid var(--line2);border-radius:99px;padding:4px 10px;cursor:pointer}
+.chip[aria-pressed="true"]{color:var(--text);border-color:var(--c)}
+
+/* ---------- B: trackpad + keys ---------- */
+.vb{flex:1;display:grid;grid-template-columns:minmax(200px,1fr) 2.2fr;gap:18px;padding:66px 24px 96px;cursor:pointer}
+.panel{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px 26px;display:flex;flex-direction:column;overflow:hidden}
+.vmeter{flex:1;margin-top:22px;border-radius:12px;background:var(--raise);position:relative;overflow:hidden;min-height:80px}
+.vmeter .fill{position:absolute;inset:0;transform-origin:bottom;background:linear-gradient(to top,var(--c),color-mix(in srgb,var(--c) 35%,transparent))}
+.ladder-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
+.ladder-wrap{flex:1;position:relative;margin-top:22px;min-height:120px}
+.ladder{position:absolute;inset:0;display:grid;grid-template-columns:repeat(8,1fr);gap:10px;align-items:end}
+.step{height:calc(var(--h) * 100%);min-height:76px;border-radius:12px;background:var(--raise);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:10px 4px;transition:background .15s,border-color .15s}
+.step.on{background:color-mix(in srgb,var(--cc11) 16%,var(--raise));border-color:color-mix(in srgb,var(--cc11) 30%,var(--line))}
+.step.cur{border-color:var(--cc11);background:color-mix(in srgb,var(--cc11) 26%,var(--raise))}
+.step .mark{font:italic 700 clamp(15px,2vw,22px) "Times New Roman",Georgia,serif;letter-spacing:.02em}
+.step.cur .mark{color:var(--cc11)}
+.level{position:absolute;left:-8px;right:-8px;height:2px;background:var(--cc11);box-shadow:0 0 18px var(--cc11);pointer-events:none}
+.keys-hint{font-size:13px;color:var(--faint);margin-top:16px}
+
+/* ---------- C: XY pad ---------- */
+.vc{flex:1;display:grid;place-content:center;grid-template-columns:auto auto;grid-template-areas:"y pad" ". x";gap:18px 22px;padding:62px 24px 96px}
+.xy{grid-area:pad;position:relative;width:min(calc(100vh - 360px),calc(100vw - 260px));min-width:240px;aspect-ratio:1;
+  background:var(--surface);border:1px solid var(--line);border-radius:22px;overflow:hidden;cursor:crosshair;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:25% 25%;background-position:-1px -1px}
+.xy .area{position:absolute;left:0;bottom:0;background:linear-gradient(to top right,color-mix(in srgb,var(--cc1) 18%,transparent),color-mix(in srgb,var(--cc11) 18%,transparent))}
+.xy .hl,.xy .vl{position:absolute;pointer-events:none}
+.xy .hl{left:0;right:0;height:1px;background:color-mix(in srgb,var(--cc1) 60%,transparent)}
+.xy .vl{top:0;bottom:0;width:1px;background:color-mix(in srgb,var(--cc11) 60%,transparent)}
+.puck{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--text);
+  box-shadow:0 0 0 6px color-mix(in srgb,var(--text) 10%,transparent),0 6px 24px #0008}
+.yread{grid-area:y;align-self:center;text-align:right;--c:var(--cc1)}
+.xread{grid-area:x;display:flex;justify-content:space-between;align-items:baseline;--c:var(--cc11)}
+.yread .big,.xread .big{font-size:clamp(40px,5vw,72px);color:var(--c)}
+
+/* ---------- prototype switcher (not part of the design) ---------- */
+.switcher{position:fixed;left:50%;bottom:50px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:4px;
+  background:#fafafa;color:#111;border-radius:99px;padding:5px;box-shadow:0 10px 40px #000a;font-size:13px;font-weight:500}
+.switcher button{all:unset;cursor:pointer;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:15px}
+.switcher button:hover{background:#0001}
+.switcher span{padding:0 10px;min-width:170px;text-align:center}
+.switcher small{color:#777;font-weight:400;margin-left:6px}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="logo"></span>Dynamics Pad<span class="tag">prototype</span></div>
+  <div class="io">
+    <span id="dot" class="dot" title="MIDI status"></span>
+    <select id="out" aria-label="MIDI output" disabled><option>Connecting MIDI…</option></select>
+    <select id="ch" aria-label="MIDI channel"></select>
+  </div>
+</header>
+<main id="stage"></main>
+<footer id="readout" class="readout mono"></footer>
+<nav id="switcher" class="switcher" hidden>
+  <button id="prev" aria-label="Previous variant">←</button><span id="vlabel"></span><button id="next" aria-label="Next variant">→</button>
+</nav>
+
+<script>
+/* ================= core state + MIDI ================= */
+const S = { v:{1:64, 11:64}, sent:{1:-1, 11:-1}, out:null, ch:0, last:'—', count:0, rate:0, midi:'pending' };
+const renderers = new Set();
+let queued = false;
+const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; renderers.forEach(f => f()); }); } };
+const onRender = f => { renderers.add(f); f(); return () => renderers.delete(f); };
+
+function setCC(cc, val) {
+  S.v[cc] = Math.max(0, Math.min(127, val));
+  const iv = Math.round(S.v[cc]);
+  if (iv !== S.sent[cc]) { S.sent[cc] = iv; send(cc, iv); }
+  schedule();
+}
+const nudge = (cc, d) => setCC(cc, S.v[cc] + d);
+
+function send(cc, val) {
+  const msg = [0xB0 | S.ch, cc, val];
+  S.last = msg.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+  S.count++;
+  try { S.out && S.out.send(msg); } catch (e) { console.warn(e); }
+}
+setInterval(() => { S.rate = S.count; S.count = 0; schedule(); }, 1000);
+
+const $ = id => document.getElementById(id);
+$('ch').innerHTML = Array.from({length:16}, (_, i) => `<option value="${i}">Ch ${i+1}</option>`).join('');
+$('ch').onchange = e => { S.ch = +e.target.value; resendAll(); };
+function resendAll() { S.sent = {1:-1, 11:-1}; setCC(1, S.v[1]); setCC(11, S.v[11]); }
+
+let access = null;
+function refreshOutputs() {
+  const sel = $('out'), outs = access ? [...access.outputs.values()] : [];
+  if (!access) {
+    sel.innerHTML = `<option>${S.midi === 'unsupported' ? 'No Web MIDI — preview only' : 'MIDI blocked — preview only'}</option>`;
+    sel.disabled = true; S.out = null;
+  } else if (!outs.length) {
+    sel.innerHTML = '<option>No outputs — enable IAC Driver</option>'; sel.disabled = true; S.out = null;
+  } else {
+    const keep = S.out && outs.find(o => o.id === S.out.id);
+    sel.disabled = false;
+    sel.innerHTML = outs.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+    S.out = keep || outs[0]; sel.value = S.out.id;
+  }
+  $('dot').className = 'dot ' + (S.out ? 'ok' : 'warn');
+  schedule();
+}
+$('out').onchange = e => { S.out = access.outputs.get(e.target.value); resendAll(); };
+(async () => {
+  if (!navigator.requestMIDIAccess) { S.midi = 'unsupported'; return refreshOutputs(); }
+  try { access = await navigator.requestMIDIAccess(); S.midi = 'ok'; access.onstatechange = refreshOutputs; }
+  catch { S.midi = 'denied'; }
+  refreshOutputs();
+})();
+
+onRender(() => {
+  const p = n => String(Math.round(S.v[n])).padStart(3, '0');
+  $('readout').innerHTML =
+    `<span class="c1">CC1 <b>${p(1)}</b></span><span class="c11">CC11 <b>${p(11)}</b></span>` +
+    `<span>last <b>${S.last}</b></span><span><b>${S.rate}</b> msg/s</span>` +
+    `<span>${S.out ? `→ <b>${S.out.name}</b> · ch ${S.ch+1}` : 'not sending'}</span>` +
+    `<span>${document.pointerLockElement ? '<b>trackpad captured</b>' : 'trackpad free'}</span>`;
+});
+
+/* ================= input helpers ================= */
+const TRAVEL = 420;                                   // px of pointer travel for full 0–127 sweep
+const gain = e => (127 / TRAVEL) * (e.shiftKey ? 0.2 : 1);   // Shift = fine
+
+function grab(el, onMove) {
+  const click = () => { if (document.pointerLockElement !== el) el.requestPointerLock()?.catch?.(() => {}); };
+  const move = e => { if (document.pointerLockElement === el) onMove(e.movementX, e.movementY, e); };
+  const change = () => schedule();
+  el.addEventListener('click', click);
+  document.addEventListener('mousemove', move);
+  document.addEventListener('pointerlockchange', change);
+  return () => {
+    el.removeEventListener('click', click);
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('pointerlockchange', change);
+    if (document.pointerLockElement) document.exitPointerLock();
+  };
+}
+function wheel(el, fn) {
+  const h = e => { e.preventDefault(); fn(e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1), e); };
+  el.addEventListener('wheel', h, { passive:false });
+  return () => el.removeEventListener('wheel', h);
+}
+function engageHint(el, freeHtml, liveHtml) {
+  return onRender(() => {
+    const live = !!document.pointerLockElement;
+    el.classList.toggle('live', live);
+    el.innerHTML = live ? liveHtml : freeHtml;
+  });
+}
+const pct = cc => S.v[cc] / 127;
+
+/* ================= variants ================= */
+const VARIANTS = {
+  A: { name:'Faders + scroll', mount(stage) {
+    let invert = false;
+    stage.innerHTML = `
+      <div class="engage"></div>
+      <section class="va">
+        ${['1','11'].map(cc => `
+        <div class="fader" data-cc="${cc}" style="--c:var(--cc${cc})">
+          <div class="ticks"></div><div class="fill"></div><div class="cap"></div>
+          <div>
+            <div class="lbl"><i>CC${cc}</i> · ${cc === '1' ? 'Modulation' : 'Expression'}</div>
+            <div class="big tnum" style="margin-top:14px"></div>
+          </div>
+          <div class="gesture">
+            <span class="fingers">${cc === '1' ? '<span></span>' : '<span></span><span></span>'}</span>
+            ${cc === '1' ? 'Slide one finger up / down' : 'Two-finger scroll up / down'}
+            ${cc === '11' ? '<button class="chip" aria-pressed="false">Invert</button>' : ''}
+          </div>
+        </div>`).join('')}
+      </section>`;
+    const root = stage.querySelector('.va');
+    const faders = { 1: root.querySelector('[data-cc="1"]'), 11: root.querySelector('[data-cc="11"]') };
+    const chip = root.querySelector('.chip');
+    chip.onclick = e => { e.stopPropagation(); invert = !invert; chip.setAttribute('aria-pressed', invert); };
+    const off = [
+      grab(root, (dx, dy, e) => nudge(1, -dy * gain(e))),
+      wheel(root, (d, e) => nudge(11, (invert ? -d : d) * gain(e))),
+      engageHint(stage.querySelector('.engage'),
+        '<b>Click</b> to capture the trackpad · scroll works anytime',
+        'Riding · <kbd>⇧</kbd> fine · <kbd>esc</kbd> release'),
+      onRender(() => [1, 11].forEach(cc => {
+        const f = faders[cc];
+        f.querySelector('.fill').style.transform = `scaleY(${pct(cc)})`;
+        f.querySelector('.cap').style.bottom = `calc(${pct(cc) * 100}% - 1px)`;
+        f.querySelector('.big').textContent = Math.round(S.v[cc]);
+      })),
+    ];
+    return () => off.forEach(f => f());
+  }},
+
+  B: { name:'Trackpad + keys', mount(stage) {
+    const MARKS = [['ppp',16],['pp',32],['p',48],['mp',64],['mf',80],['f',96],['ff',112],['fff',127]];
+    stage.innerHTML = `
+      <div class="engage"></div>
+      <section class="vb">
+        <div class="panel" style="--c:var(--cc1)">
+          <div class="lbl"><i>CC1</i> · Modulation</div>
+          <div class="big tnum" id="b1" style="margin-top:14px"></div>
+          <div class="how">Trackpad · slide up / down</div>
+          <div class="vmeter"><div class="fill"></div></div>
+        </div>
+        <div class="panel" style="--c:var(--cc11)">
+          <div class="ladder-head">
+            <div><div class="lbl"><i>CC11</i> · Expression</div><div class="big tnum" id="b11" style="margin-top:14px"></div></div>
+            <div class="how" style="text-align:right">Keys <kbd>1</kbd>–<kbd>8</kbd> glide to a dynamic<br>Hold <kbd>W</kbd> / <kbd>S</kbd> to swell / fade</div>
+          </div>
+          <div class="ladder-wrap">
+            <div class="ladder">${MARKS.map(([m, v], i) => `
+              <div class="step" data-i="${i}" style="--h:${v/127}"><span class="mark">${m}</span><kbd>${i+1}</kbd></div>`).join('')}
+            </div>
+            <div class="level"></div>
+          </div>
+        </div>
+      </section>`;
+    const root = stage.querySelector('.vb'), steps = [...root.querySelectorAll('.step')];
+    const held = { up:false, down:false };
+    let glide = null, raf = 0, prev = performance.now(), shift = false;
+    const glideTo = to => { glide = { from:S.v[11], to, t0:performance.now(), dur:320 }; };
+    const tick = now => {
+      const dt = (now - prev) / 1000; prev = now;
+      if (held.up || held.down) { glide = null; nudge(11, (held.up ? 1 : -1) * 70 * dt * (shift ? 0.25 : 1)); }
+      else if (glide) {
+        const t = Math.min(1, (now - glide.t0) / glide.dur), k = 1 - Math.pow(1 - t, 3);
+        setCC(11, glide.from + (glide.to - glide.from) * k);
+        if (t === 1) glide = null;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const key = down => e => {
+      shift = e.shiftKey;
+      if (e.code === 'KeyW') held.up = down;
+      else if (e.code === 'KeyS') held.down = down;
+      else if (down && !e.repeat && /^Digit[1-8]$/.test(e.code)) glideTo(MARKS[+e.code.slice(5) - 1][1]);
+    };
+    const kd = key(true), ku = key(false), blur = () => { held.up = held.down = false; };
+    addEventListener('keydown', kd); addEventListener('keyup', ku); addEventListener('blur', blur);
+    steps.forEach(s => s.addEventListener('click', () => glideTo(MARKS[+s.dataset.i][1])));
+    const off = [
+      grab(root, (dx, dy, e) => nudge(1, -dy * gain(e))),
+      engageHint(stage.querySelector('.engage'),
+        '<b>Click</b> to capture the trackpad · keys work anytime',
+        'Riding · right hand CC1 · left hand CC11 · <kbd>esc</kbd> release'),
+      onRender(() => {
+        root.querySelector('#b1').textContent = Math.round(S.v[1]);
+        root.querySelector('#b11').textContent = Math.round(S.v[11]);
+        root.querySelector('.vmeter .fill').style.transform = `scaleY(${pct(1)})`;
+        root.querySelector('.level').style.bottom = `calc(${pct(11) * 100}% - 1px)`;
+        let cur = 0; MARKS.forEach(([, v], i) => { if (Math.abs(v - S.v[11]) < Math.abs(MARKS[cur][1] - S.v[11])) cur = i; });
+        steps.forEach((s, i) => { s.classList.toggle('on', MARKS[i][1] <= S.v[11] + 0.5); s.classList.toggle('cur', i === cur); });
+      }),
+    ];
+    return () => {
+      off.forEach(f => f()); cancelAnimationFrame(raf);
+      removeEventListener('keydown', kd); removeEventListener('keyup', ku); removeEventListener('blur', blur);
+    };
+  }},
+
+  C: { name:'XY pad', mount(stage) {
+    stage.innerHTML = `
+      <div class="engage"></div>
+      <section class="vc">
+        <div class="yread"><div class="lbl"><i>CC1</i> · Modulation ↑</div><div class="big tnum" id="c1" style="margin-top:10px"></div></div>
+        <div class="xy"><div class="area"></div><div class="hl"></div><div class="vl"></div><div class="puck"></div></div>
+        <div class="xread"><div class="lbl"><i>CC11</i> · Expression →</div><div class="big tnum" id="c11"></div></div>
+      </section>`;
+    const pad = stage.querySelector('.xy');
+    const off = [
+      grab(pad, (dx, dy, e) => { const g = gain(e); nudge(1, -dy * g); if (!e.altKey) nudge(11, dx * g); }),
+      engageHint(stage.querySelector('.engage'),
+        '<b>Click the pad</b> to capture the trackpad',
+        'Riding · <kbd>⇧</kbd> fine · hold <kbd>⌥</kbd> for CC1 only · <kbd>esc</kbd> release'),
+      onRender(() => {
+        const x = pct(11) * 100, y = pct(1) * 100;
+        pad.querySelector('.puck').style.cssText = `left:${x}%;top:${100 - y}%`;
+        pad.querySelector('.hl').style.top = `${100 - y}%`;
+        pad.querySelector('.vl').style.left = `${x}%`;
+        pad.querySelector('.area').style.cssText = `width:${x}%;height:${y}%`;
+        stage.querySelector('#c1').textContent = Math.round(S.v[1]);
+        stage.querySelector('#c11').textContent = Math.round(S.v[11]);
+      }),
+    ];
+    return () => off.forEach(f => f());
+  }},
+};
+
+/* ================= prototype switcher ================= */
+const keys = Object.keys(VARIANTS);
+let current = new URLSearchParams(location.search).get('variant')?.toUpperCase();
+if (!keys.includes(current)) current = 'A';
+let unmount = null;
+function show(k) {
+  unmount?.(); current = k;
+  unmount = VARIANTS[k].mount($('stage'));
+  const u = new URL(location.href); u.searchParams.set('variant', k); history.replaceState(null, '', u);
+  $('vlabel').innerHTML = `${k}<small>${VARIANTS[k].name}</small>`;
+  schedule();
+}
+const step = d => show(keys[(keys.indexOf(current) + d + keys.length) % keys.length]);
+const isDev = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+if (isDev) {
+  $('switcher').hidden = false;
+  $('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
+  addEventListener('keydown', e => {
+    if (e.target.closest?.('input,textarea,select,[contenteditable]')) return;
+    if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+  });
+}
+show(current);
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
