@@ -1,0 +1,18 @@
+@import "@prototypes/ui/globals.css";
+
+/* CC colours: CC1 = primary (indigo), CC11 = amber. */
+:root { --cc11: oklch(0.666 0.179 58.318); }   /* amber-600 */
+.dark { --cc11: oklch(0.828 0.189 84.429); }   /* amber-400 */
+@theme inline {
+  --color-cc1: var(--primary);
+  --color-cc11: var(--cc11);
+}
+
+/* Full-screen XY grid: lines every 12.5%. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 12.5% 12.5%;
+  background-position: 0 -1px;
+}

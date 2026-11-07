@@ -1,0 +1,10 @@
+{
+  "name": "prototypes",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "dev": "pnpm --filter site dev",
+    "build": "node scripts/build.mjs",
+    "preview": "pnpm --filter site exec vite preview --outDir ../dist --port 4173"
+  }
+}

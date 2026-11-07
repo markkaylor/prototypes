@@ -1,0 +1,37 @@
+{
+  "name": "dynamics-pad",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "A full-screen XY pad for riding CC1 (modulation) and CC11 (expression) from a Mac trackpad over Web MIDI.",
+  "prototype": {
+    "title": "Dynamics Pad",
+    "tags": [
+      "MIDI",
+      "Web MIDI",
+      "PWA"
+    ],
+    "created": "2026-11-07"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@prototypes/ui": "workspace:*",
+    "lucide-react": "^1.70.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6"
+  }
+}
