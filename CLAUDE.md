@@ -5,6 +5,7 @@ Every prototype is built with this stack, whatever a skill's default shape says:
 - **React + Vite + TypeScript**, one Vite app per prototype, in its own folder `prototypes/<name>/`. Each prototype has its own `dev` script, run from the root with `pnpm --filter <name> dev`.
 - **Tailwind CSS** for all styling.
 - **shadcn/ui** for UI components. Shared components live in one workspace package, `packages/ui/` (`@prototypes/ui`), which every prototype imports. Add new components there with the shadcn CLI (monorepo mode) so all prototypes can reuse them. A component that only one prototype needs stays in that prototype's folder.
+- **Always use shadcn/ui for controls.** Never write a raw `<button>`, `<input>`, `<select>` or `<textarea>`: use `Button`, `Input`, `Select`, `Toggle` and so on from `@prototypes/ui`, restyled with `className` when a design needs it. If the component you need isn't in `packages/ui/` yet, add it with the shadcn CLI first.
 - **pnpm workspaces** connect `site`, `prototypes/*` and `packages/*`.
 - **Design:** every prototype and the site follow `docs/design-guidelines.md`. That means minimalism with Bauhaus playfulness: mostly paper and ink, with red, blue and yellow (and the circle, square and triangle) as small accents. Jost, square corners, thin ink rules, no dark mode. Visitor-facing copy says "field notes", not "prototypes".
 
