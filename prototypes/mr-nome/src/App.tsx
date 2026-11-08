@@ -299,7 +299,9 @@ function Entry({ l }: { l: Review }) {
       </p>
       {l.alternatives && (
         <p className="mt-0.5 text-xs text-muted-foreground">
-          or: {l.alternatives.slice(1).map((a) => `“${a.text}”`).join(", ")}
+          {l.used
+            ? <>picked over “{l.alternatives[0].text}”</>
+            : <>or: {l.alternatives.slice(1).map((a) => `“${a.text}”`).join(", ")}</>}
         </p>
       )}
       <div className="mt-1.5 flex flex-wrap gap-1">

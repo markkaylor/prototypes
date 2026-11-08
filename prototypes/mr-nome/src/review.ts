@@ -6,7 +6,7 @@
  */
 import { useSyncExternalStore } from "react"
 import { command } from "./engine"
-import { describe } from "./parse"
+import { describe, parse } from "./parse"
 
 export type Alt = { text: string; confidence: number }
 
@@ -17,6 +17,8 @@ export type Review = {
   transcript: string
   /** The speech engine's other guesses, best first (voice only). */
   alternatives?: Alt[]
+  /** Index into alternatives of the guess that was acted on, when it wasn't the first. */
+  used?: number
   /** What it understood, clause by clause: step chips and leftover words. */
   understood: { steps: string[]; leftover: string }[]
   outcome: string
@@ -54,8 +56,22 @@ function save() {
 }
 const commit = (next: Review[]) => { entries = next; emit(); save() }
 
-/** Run a command and log it. */
-export function run(transcript: string, source: Review["source"], alternatives?: Alt[]) {
+/** How much of a guess the rules understood: steps found, minus words left over. */
+function score(text: string) {
+  const p = parse(text)
+  const leftover = p.clauses.reduce((n, c) => n + (c.leftover ? c.leftover.split(" ").length : 0), 0)
+  return p.steps.length * 2 - leftover
+}
+
+/** Run a command and log it. For speech, act on whichever guess the rules understand best. */
+export function run(heard: string, source: Review["source"], alternatives?: Alt[]) {
+  if (!heard.trim()) return // empty recognitions (noise, a cough) aren't commands
+  let used = 0
+  if (alternatives && alternatives.length > 1) {
+    const scores = alternatives.map((a) => score(a.text))
+    used = scores.indexOf(Math.max(...scores)) // ties keep the recogniser's own favourite
+  }
+  const transcript = alternatives?.[used]?.text ?? heard
   const { parsed, outcome } = command(transcript)
   commit([
     {
@@ -64,6 +80,7 @@ export function run(transcript: string, source: Review["source"], alternatives?:
       source,
       transcript,
       ...(alternatives && alternatives.length > 1 ? { alternatives } : {}),
+      ...(used ? { used } : {}),
       understood: parsed.clauses.map((c) => ({ steps: c.steps.map(describe), leftover: c.leftover })),
       outcome,
     },
@@ -86,7 +103,7 @@ export function toMarkdown(list: Review[] = entries): string {
   for (const e of [...list].reverse()) {
     const mark = e.verdict === "right" ? "✓" : e.verdict === "wrong" ? "✗" : "·"
     lines.push(`- ${mark} “${e.transcript}” (${e.source})`)
-    if (e.alternatives) lines.push(`  - heard as: ${e.alternatives.map((a) => `“${a.text}” ${a.confidence.toFixed(2)}`).join(", ")}`)
+    if (e.alternatives) lines.push(`  - heard as: ${e.alternatives.map((a, i) => `“${a.text}” ${a.confidence.toFixed(2)}${i === (e.used ?? 0) ? " (used)" : ""}`).join(", ")}`)
     const got = e.understood.flatMap((c) => [...c.steps, ...(c.leftover ? [`? ${c.leftover}`] : [])]).join(" · ") || "nothing"
     lines.push(`  - understood: ${got}`)
     if (e.note) lines.push(`  - note: ${e.note}`)

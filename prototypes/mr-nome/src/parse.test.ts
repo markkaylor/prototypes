@@ -236,11 +236,31 @@ const CORPUS: Record<string, [string, string][]> = {
     ["count in one bar and play 12 bars at 96 in 3/4", "count in 1 bar · tempo 96 · meter 3/4 · click 12 bars"],
     ["accelerate from 100 to 140 over 16 bars", "tempo 100 · click 1 bar · +3 bpm · repeat until 140"],
   ],
+  // real speech-recognition output from .scratch/mr-nome/transcripts.json (2026-11-08)
+  "real transcripts": [
+    ["start at 60 bpm", "tempo 60 · start"],
+    ["cricket at 80 BPM accent beats 1 and 3", "tempo 80 · accent 1st, 3rd · start"],
+    ["x and B1 only", "accent 1st"],
+    ["x and V1 only", "accent 1st"],
+    ["x and beat one only", "accent 1st"],
+    ["action D1", "accent 1st"],
+    ["action P1", "accent 1st"],
+    ["xnp1", "accent 1st"],
+  ],
   "not understood": [
     ["make it purple", "? purple"],
     ["knock it down to 10", "? 10"],
   ],
 }
+
+// Hands-free hears the room. None of this may do anything.
+const CHATTER = [
+  "yeah sounds like a car out there making this ruckus",
+  "a missing with this thing now",
+  "a mess in with this thing now",
+  "what",
+]
+for (const say of CHATTER) test(`chatter does nothing: ${say}`, () => expect(parse(say).steps).toEqual([]))
 
 for (const [group, cases] of Object.entries(CORPUS))
   for (const [say, want] of cases) test(`${group}: ${say}`, () => expect(read(say)).toBe(want))

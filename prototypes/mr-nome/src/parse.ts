@@ -121,6 +121,11 @@ export function normalize(raw: string): string {
   let s = " " + raw.toLowerCase().replace(/’/g, "'") + " "
   s = s.replace(/[“”"!?]/g, " ")
     .replace(/\ba hundred\b/g, " one hundred ")
+    // what speech recognition hears instead of our words (from real transcripts in .scratch/mr-nome)
+    .replace(/\bx ?n ?[bdpv] ?(\d)\b/g, " accent beat $1 ") // "xnp1"
+    .replace(/\b[bdpv] ?(\d|one|two|three|four|five|six|seven)\b/g, " beat $1 ") // "B1", "D1", "P1", "V1"
+    .replace(/\b(?:(?:x|ex|axe?|acts?) and|action|accident|absent|ascent|assent|accept|except|exit)\b(?=\s+(?:beats?|\d|one|two|three|four|ord|the|on|first|second|third|fourth|downbeat|every|all))/g, " accent ")
+    .replace(/\b(?:cricket|cricut|kricket|clique|klick|clic|quick|kick)\b(?=\s+(?:at|for|\d|in|on|it|one|two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred))/g, " click ")
     // speech homophones: "count in for", "accent beat to", "click ate bars"
     .replace(/\b(count in|count me in|click|play|beats?|accent|repeat|in) (?:for|fore)\b(?=\s*(?:$|[,;.]|bars?|beats?|times|measures?))/g, " $1 four ")
     .replace(/\b(beats?|accent(?: on)?|and) (?:to|too)\b(?!\s+(?:\d|one|two|three|four|five|six|seven|eight|nine))/g, " $1 two ")
