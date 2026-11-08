@@ -52,6 +52,8 @@ const CORPUS: Record<string, [string, string][]> = {
     ["4/4", "meter 4/4"],
     ["three four", "meter 3/4"],
     ["in 3/4", "meter 3/4"],
+    ["3. Four time.", "meter 3/4"], // Whisper
+    ["3-4 time", "meter 3/4"],
     ["6/8 time", "meter 6/8"],
     ["five four", "meter 5/4"],
     ["seven eight", "meter 7/8"],

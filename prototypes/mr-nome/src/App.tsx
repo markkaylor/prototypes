@@ -11,7 +11,8 @@ import {
   addEntry, clearLines, compileLines, getLines, loadExample, removeAt, removeLast, removeLine, updateLine, useLines,
   type Compiled,
 } from "./routine"
-import { holdEnd, holdStart, onCommand, setHandsFree, setUseHints, talk, useSpeech } from "./speech"
+import { holdEnd, holdStart, onCommand, setChoice, setHandsFree, setUseHints, talk, useSpeech, type Choice } from "./speech"
+import { useWhisper } from "./whisper"
 
 const SPRING = "transition-transform duration-150 ease-[cubic-bezier(.3,1.6,.5,1)] motion-reduce:transition-none"
 
@@ -308,6 +309,7 @@ function RoutineBuilder({ now, running, inputRef }: { now: Beat | null; running:
 /* ---------- add a step: type or talk ---------- */
 function AddStep({ inputRef, n }: { inputRef: React.RefObject<HTMLInputElement | null>; n: number }) {
   const sp = useSpeech()
+  const model = useWhisper()
   const [text, setText] = useState("")
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault()
@@ -345,6 +347,9 @@ function AddStep({ inputRef, n }: { inputRef: React.RefObject<HTMLInputElement |
       <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-2 pl-11 text-sm text-muted-foreground">
         <span className="min-w-0">
           {sp.error ? <span className="text-red">Mic: {sp.error}</span>
+            : sp.choice === "whisper" && model.status === "loading" ? <>Downloading the speech model, once… {Math.round(model.progress * 100)}%</>
+            : sp.transcribing ? "Writing it down…"
+            : sp.interim === "…" ? "Hearing you…"
             : sp.interim ? <span className="text-ink">“{sp.interim}”</span>
             : sp.listening ? "Listening… finish talking and I'll add it."
             : sp.supported ? <>Hold <Kbd>V</Kbd> to talk. Say “start” or “stop” to play, “delete 3” or “undo” to edit.</>
@@ -352,7 +357,19 @@ function AddStep({ inputRef, n }: { inputRef: React.RefObject<HTMLInputElement |
         </span>
         {sp.supported && (
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {sp.hints !== "unsupported" && (
+            <label className="flex items-center gap-2 select-none">
+              Speech
+              <select
+                value={sp.choice}
+                onChange={(ev) => setChoice(ev.target.value as Choice)}
+                className="border border-ink/40 bg-transparent px-1.5 py-0.5 text-sm outline-none focus-visible:border-blue"
+                title="Whisper runs on this device: a one-time ~100 MB download, then free, private and offline."
+              >
+                <option value="whisper">Whisper (on this device)</option>
+                <option value="browser">Browser</option>
+              </select>
+            </label>
+            {sp.choice === "browser" && sp.hints !== "unsupported" && (
               <label
                 className={cn("flex items-center gap-2 select-none", sp.hints === "unavailable" ? "opacity-50" : "cursor-pointer")}
                 title="Chrome's on-device speech model, told in advance to expect words like “accent” and “click”. Free, private, works offline."
@@ -434,6 +451,7 @@ function Entry({ l }: { l: Review }) {
       <p className="flex items-start gap-1.5">
         {l.source === "voice" && <MicIcon className="mt-0.5 size-3.5 shrink-0 text-blue" aria-label="Spoken" />}
         <span>“{l.transcript}”</span>
+        {l.engine === "whisper" && <span className="ml-auto shrink-0 text-xs tracking-widest text-muted-foreground uppercase" title="Heard by Whisper, on this device">whisper</span>}
         {l.engine === "on-device" && <span className="ml-auto shrink-0 text-xs tracking-widest text-muted-foreground uppercase" title="Heard by Chrome's on-device model with vocabulary hints">hints</span>}
       </p>
       {l.alternatives && (

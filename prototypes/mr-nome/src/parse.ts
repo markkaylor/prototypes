@@ -120,6 +120,8 @@ const SYNONYMS: [RegExp, string][] = [
 
 export function normalize(raw: string): string {
   let s = " " + raw.toLowerCase().replace(/’/g, "'") + " "
+  // Whisper writes "3/4 time" as "3. Four time." (its prompt is full of full stops)
+  s = s.replace(/\b(\d{1,2})\.\s+(\d{1,2}|two|three|four|six|eight|twelve) time\b/g, (_, a, b) => ` ${a}/${{ two: 2, three: 3, four: 4, six: 6, eight: 8, twelve: 12 }[b as string] ?? b} time`)
   // numbered lists: "1. start at 60, 2. count in 4" → item markers, before "." becomes a clause break
   s = s.replace(/(^|[,;\n]|\.\s)\s*(\d{1,2})[.)]\s+(?=[a-z])/g, "$1 item$2 ")
     .replace(/\b(repeat|loop|go back|start again|again)((?: it| that| this)?) from (?:step |item |number |#)?(\d{1,2})\.?(?=\s|$|,)/g, " $1$2 fromstep $3 ")

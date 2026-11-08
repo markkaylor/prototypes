@@ -19,7 +19,7 @@ export type Review = {
   /** Index into alternatives of the guess that was acted on, when it wasn't the first. */
   used?: number
   /** Which recogniser heard it (voice only): the browser's cloud service, or on-device with vocabulary hints. */
-  engine?: "cloud" | "on-device"
+  engine?: "cloud" | "on-device" | "whisper"
   /** What it understood, clause by clause: step chips and leftover words. */
   understood: { steps: string[]; leftover: string }[]
   outcome: string

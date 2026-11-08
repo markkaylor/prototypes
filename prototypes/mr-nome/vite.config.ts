@@ -40,4 +40,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), transcripts()],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
   server: { port: 5174 },
+  worker: { format: "es" }, // the Whisper worker imports transformers.js, which splits into chunks
 })

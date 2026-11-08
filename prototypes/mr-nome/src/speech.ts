@@ -7,8 +7,12 @@
  * - "on-device": Chrome's local model with vocabulary hints (contextual biasing). Chrome only
  *   accepts `phrases` when `processLocally` is on, and the model is a one-time download.
  *   This is the free version of what Claude Code's voice mode does with `keyterms`.
+ * And a third, the default: "whisper", OpenAI's Whisper running in the page (see whisper.worker.ts).
+ * It records a clip, then transcribes it in about a second, with a prompt that teaches it the vocabulary.
  */
 import { useSyncExternalStore } from "react"
+import { openMic, to16k, type MicSession, type Mode } from "./mic"
+import { downloadedBefore, loadWhisper, transcribe } from "./whisper"
 
 type Phrase = object
 type Rec = {
@@ -44,22 +48,29 @@ const VOCAB: [string, number][] = [
   ["waltz", 1.2], ["stop", 1.2], ["start", 1.2],
 ]
 
-export type Engine = "cloud" | "on-device"
+export type Engine = "cloud" | "on-device" | "whisper"
+/** Which recogniser the person picked. "browser" is cloud or on-device, depending on `useHints`. */
+export type Choice = "whisper" | "browser"
 /** `hints`: whether on-device + vocabulary hints can be used here, and its state. */
 export type HintSupport = "unsupported" | Availability | "installing"
 
 type State = {
   supported: boolean; listening: boolean; handsFree: boolean; interim: string; error: string | null
   hints: HintSupport; useHints: boolean
+  choice: Choice; transcribing: boolean
 }
 const PREF = "mr-nome:use-hints"
 const pref = () => { try { return localStorage.getItem(PREF) === "1" } catch { return false } }
 const savePref = (on: boolean) => { try { localStorage.setItem(PREF, on ? "1" : "0") } catch { /* fine */ } }
+const CHOICE = "mr-nome:engine"
+const choicePref = (): Choice => { try { return localStorage.getItem(CHOICE) === "browser" ? "browser" : "whisper" } catch { return "whisper" } }
+const hasMic = !!navigator.mediaDevices?.getUserMedia && typeof AudioWorkletNode !== "undefined"
 
 const canHint = !!(Ctor?.available && Ctor.install && w.SpeechRecognitionPhrase && "phrases" in Ctor.prototype)
 let state: State = {
-  supported: !!Ctor, listening: false, handsFree: false, interim: "", error: null,
+  supported: !!Ctor || hasMic, listening: false, handsFree: false, interim: "", error: null,
   hints: canHint ? "unavailable" : "unsupported", useHints: false,
+  choice: hasMic && (choicePref() === "whisper" || !Ctor) ? "whisper" : "browser", transcribing: false,
 }
 const listeners = new Set<() => void>()
 const set = (p: Partial<State>) => { state = { ...state, ...p }; listeners.forEach((l) => l()) }
@@ -69,6 +80,16 @@ if (canHint) {
   Ctor!.available!({ langs: [LANG], processLocally: true })
     .then((a) => set({ hints: a, useHints: a === "available" && pref() }))
     .catch(() => set({ hints: "unsupported" }))
+}
+
+// the weights are cached after the first time, so get the model ready before the first command
+if (state.choice === "whisper" && downloadedBefore()) loadWhisper()
+
+export function setChoice(c: Choice) {
+  try { localStorage.setItem(CHOICE, c) } catch { /* fine */ }
+  set({ choice: c, error: null })
+  if (c === "whisper") loadWhisper() // picking it is the consent to download
+  restartIfHandsFree()
 }
 
 /** Turn on-device + vocabulary hints on or off. Turning it on may download the model (needs a click). */
@@ -88,7 +109,8 @@ export async function setUseHints(on: boolean) {
   restartIfHandsFree()
 }
 
-let rec: Rec | null = null
+/** The current listening session, whichever engine runs it. */
+let rec: { stop(): void; abort(): void } | null = null
 export type Heard = { text: string; confidence: number }
 /** Called with the best transcript first, then the engine's other guesses, and which engine heard it. */
 let onFinal: (alts: Heard[], engine: Engine) => void = () => {}
@@ -99,7 +121,6 @@ export const onCommand = (fn: (alts: Heard[], engine: Engine) => void) => { onFi
  * one runs "click at 60" while you're still saying "…count in 4". Instead, collect final phrases and
  * act once you've finished: on key release (hold), or after a stretch of silence (tap, hands-free).
  */
-type Mode = "hold" | "tap" | "handsFree"
 const SILENCE_MS: Record<Mode, number | null> = { hold: null, tap: 1200, handsFree: 1500 }
 /** Said on its own, these act immediately. */
 const URGENT = /^\s*(?:stop|pause|halt|shh+|hold on|hold it|wait|enough|that's enough)[\s.!]*$/i
@@ -136,11 +157,14 @@ function heardSomething() {
 }
 
 function begin(m: Mode) {
-  if (!Ctor) return
-  rec?.abort()
+  const old = rec
+  rec = null // first, so the old session's end handler knows it's been replaced
+  old?.abort()
   clearTimeout(silence)
   pending = []; interimText = ""
   mode = m
+  if (state.choice === "whisper") { beginWhisper(); return }
+  if (!Ctor) return
   const r = new Ctor()
   rec = r
   r.lang = LANG
@@ -184,6 +208,44 @@ function begin(m: Mode) {
   }
   set({ listening: true, error: state.error?.startsWith("On-device") ? state.error : null, interim: "" })
   r.start()
+}
+
+/** Hallucinations Whisper is known for on near-silence, and its sound-effect captions ("[click]"). */
+const NOT_SPEECH = /^(?:you|thank you|thanks for watching|bye|\.+)?[.!]?$/i
+const clean = (t: string) => t.replace(/\[[^\]]*\]|\([^)]*\)|\*[^*]*\*/g, " ").replace(/\s+/g, " ").trim().replace(/\.$/, "")
+
+let clips = 0 // clips still being transcribed
+function beginWhisper() {
+  // the mic opens asynchronously; a stop or abort before then is replayed once it's open
+  let early: "stop" | "abort" | null = null
+  let s: MicSession = { stop() { early ??= "stop" }, abort() { early = "abort" } }
+  const session: MicSession = { stop: () => s.stop(), abort: () => s.abort() }
+  rec = session
+  set({ listening: true, error: null, interim: "" })
+  loadWhisper()
+  void openMic({
+    mode: () => mode,
+    onSpeech: () => set({ interim: "…" }),
+    onClip: async (pcm, rate) => {
+      clips++
+      set({ transcribing: true, interim: "" })
+      try {
+        const text = clean(await transcribe(await to16k(pcm, rate)))
+        if (text && !NOT_SPEECH.test(text)) onFinal([{ text, confidence: 1 }], "whisper")
+      } catch (e) {
+        set({ error: `Whisper: ${String(e)}` })
+      } finally {
+        set({ transcribing: --clips > 0 })
+      }
+    },
+    onEnd: (error) => {
+      if (rec !== session) return
+      if (error) set({ error, handsFree: false })
+      if (state.handsFree && !error) { begin("handsFree"); return }
+      rec = null
+      set({ listening: false, interim: "" })
+    },
+  }).then((real) => { s = real; if (early) real[early]() })
 }
 
 function restartIfHandsFree() { if (state.handsFree && state.listening) begin("handsFree") }
