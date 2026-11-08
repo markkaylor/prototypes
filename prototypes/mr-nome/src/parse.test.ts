@@ -247,6 +247,19 @@ const CORPUS: Record<string, [string, string][]> = {
     ["action P1", "accent 1st"],
     ["xnp1", "accent 1st"],
   ],
+  // round 3: on-device engine with vocabulary hints, plus a typed numbered routine
+  "real transcripts, round 3": [
+    ["1. Start at 60 bpm, 2. count in 4 beats, 3. click for 4 beats, 5. increase the tempo by 10, repeat from 2. until 120 bpm",
+      "tempo 60 · start · count in 4 beats · click 4 beats · +10 bpm · repeat from #2 until 120"],
+    ["All right start at six bpm 60 beats per minute", "tempo 60 · start · ? 6"],
+    ["Count count in four beats click click click click for four beats", "count in 4 beats · click 4 beats"],
+    ["Start at 60 beats per minutes", "tempo 60 · start"],
+    ["Start at 60 beats per minute Click click click click click click click click click click click click click click click for four beats",
+      "tempo 60 · click 4 beats"],
+    ["start at 60 beat per minute click for four beats", "tempo 60 · click 4 beats"],
+    ["click 2 bars, rest 2 bars, repeat from 1", "click 2 bars · silent 2 bars · repeat from #1 forever"],
+    ["click 2 bars, repeat from 7", "click 2 bars · repeat forever"],
+  ],
   "not understood": [
     ["make it purple", "? purple"],
     ["knock it down to 10", "? 10"],

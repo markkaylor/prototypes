@@ -36,11 +36,12 @@ const LANG = "en-US"
  * hearing these words in noise. The worst offenders from real transcripts get the most.
  */
 const VOCAB: [string, number][] = [
-  ["accent", 6], ["accent beat one", 6], ["click", 6], ["click at", 5],
-  ["count in", 4], ["count me in", 3], ["bpm", 4], ["beats", 3], ["bars", 3], ["beat one", 4],
-  ["downbeat", 3], ["backbeat", 3], ["eighth notes", 3], ["triplets", 3], ["sixteenths", 3], ["subdivide", 3],
-  ["faster", 2], ["slower", 2], ["repeat until", 3], ["three four", 3], ["four four", 3], ["six eight", 3],
-  ["waltz", 2], ["stop", 2], ["start", 2],
+  // Kept gentle: at 6 the on-device model typed "click" fifteen times for one "click".
+  ["accent", 3], ["accent beat one", 2.5], ["click", 2], ["click at", 2],
+  ["count in", 2], ["count me in", 1.5], ["bpm", 2], ["beats per minute", 2], ["beats", 1.5], ["bars", 1.5], ["beat one", 2],
+  ["downbeat", 1.5], ["backbeat", 1.5], ["eighth notes", 1.5], ["triplets", 1.5], ["sixteenths", 1.5], ["subdivide", 1.5],
+  ["faster", 1.2], ["slower", 1.2], ["repeat until", 1.5], ["three four", 1.5], ["four four", 1.5], ["six eight", 1.5],
+  ["waltz", 1.2], ["stop", 1.2], ["start", 1.2],
 ]
 
 export type Engine = "cloud" | "on-device"

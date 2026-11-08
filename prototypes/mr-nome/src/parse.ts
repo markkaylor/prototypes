@@ -16,11 +16,12 @@ export type Step =
   | { kind: "sub"; sub: Sub }
   | { kind: "countIn"; n: number; unit: "beats" | "bars" }
   | { kind: "play"; n: number; unit: "beats" | "bars"; muted?: boolean }
-  | { kind: "repeat"; until?: number; times?: number }
+  | { kind: "repeat"; until?: number; times?: number; from?: Step; fromLabel?: number }
   | { kind: "start" }
   | { kind: "stop" }
 
-export type Clause = { text: string; steps: Step[]; leftover: string }
+/** `label`: the item number when the command was written as a numbered list ("1. start at 60, 2. …"). */
+export type Clause = { text: string; steps: Step[]; leftover: string; label?: number }
 export type Parsed = { input: string; clauses: Clause[]; steps: Step[] }
 
 /** Steps that only make sense as a timeline. Any of these means "replace the program and run it". */
@@ -119,7 +120,12 @@ const SYNONYMS: [RegExp, string][] = [
 
 export function normalize(raw: string): string {
   let s = " " + raw.toLowerCase().replace(/’/g, "'") + " "
+  // numbered lists: "1. start at 60, 2. count in 4" → item markers, before "." becomes a clause break
+  s = s.replace(/(^|[,;\n]|\.\s)\s*(\d{1,2})[.)]\s+(?=[a-z])/g, "$1 item$2 ")
+    .replace(/\b(repeat|loop|go back|start again|again)((?: it| that| this)?) from (?:step |item |number |#)?(\d{1,2})\.?(?=\s|$|,)/g, " $1$2 fromstep $3 ")
   s = s.replace(/[“”"!?]/g, " ")
+    // stutters and over-eager recognisers: "click click click", "count count in"
+    .replace(/\b([a-z]+)(?:\s+\1\b)+/g, (m, w) => (w in UNITS || w in TENS ? m : w)) // but "four four" is a meter
     .replace(/\ba hundred\b/g, " one hundred ")
     // what speech recognition hears instead of our words (from real transcripts in .scratch/mr-nome)
     .replace(/\bx ?n ?[bdpv] ?(\d)\b/g, " accent beat $1 ") // "xnp1"
@@ -132,7 +138,7 @@ export function normalize(raw: string): string {
     .replace(/\bate\b/g, " eight ").replace(/\bwon\b/g, " one ")
     .replace(/\b(?:hey|ok(?:ay)?|please|mister|mr\.?|nome|gnome|metronome|can you|could you|would you|i want(?: you)? to|i'd like to|let's|lets)\b/g, " ")
     .replace(/\bb\.? ?p\.? ?m\.?\b/g, " bpm ")
-    .replace(/\bbeats per minute\b/g, " bpm ")
+    .replace(/\bbeats? (?:per|a|\/) ?min(?:ute)?s?\b/g, " bpm ")
     .replace(/(\d)(st|nd|rd|th)\b/g, " ord$1 ")
     .replace(/\btwice\b/g, " 2 times ").replace(/\bthrice\b/g, " 3 times ").replace(/\bonce\b/g, " 1 times ")
     .replace(/\b(?:a|one) (bar|measure|beat)\b/g, " 1 $1")
@@ -212,8 +218,8 @@ const EXTRACTORS: Ex[] = [
     return [{ kind: "countIn", n: 1, unit: "bars" }]
   }],
   // repeat / loop
-  [/\b(?:repeat|loop(?:ing)?|again|keep (?:looping|repeating)|keep (?:doing|going|repeating) (?:that|this)|do (?:that|it) again|go back)\b(?: (?:it|that|this))?(?: (\d+) (?:more )?times)?(?: (?:until|till|up to|to|reach(?:es)?|hit|get to)(?: (?:you|we))?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?)?/, (m) => [
-    { kind: "repeat", times: m[1] ? +m[1] : undefined, until: m[2] ? +m[2] : undefined },
+  [/\b(?:repeat|loop(?:ing)?|again|keep (?:looping|repeating)|keep (?:doing|going|repeating) (?:that|this)|do (?:that|it) again|go back)\b(?: (?:it|that|this))?(?: fromstep (\d+))?(?: (\d+) (?:more )?times)?(?: (?:until|till|up to|to|reach(?:es)?|hit|get to)(?: (?:you|we))?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?)?/, (m) => [
+    { kind: "repeat", fromLabel: m[1] ? +m[1] : undefined, times: m[2] ? +m[2] : undefined, until: m[3] ? +m[3] : undefined },
   ]],
   [/\b(?:until|till|up to)(?: (?:you|we))?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?/, (m) => [{ kind: "repeat", until: +m[1] }]],
   [/\b(\d+) (?:more )?times\b/, (m) => [{ kind: "repeat", times: +m[1] }]],
@@ -269,17 +275,21 @@ const ORDER: Record<Step["kind"], number> = {
   tempo: 0, tempoMul: 0, meter: 0, accent: 0, sub: 0, start: 1, countIn: 2, play: 3, tempoBy: 4, repeat: 5, stop: 6,
 }
 
-function parseClause(text: string): Clause {
+function parseClause(raw: string): Clause {
+  const item = raw.match(/^item(\d+)\s*/)
+  const text = item ? raw.slice(item[0].length) : raw
   let rest = ` ${text} `
   const found: { at: number; steps: Step[] }[] = []
+  const declined: string[] = []
   for (const [re, make] of EXTRACTORS) {
     // an extractor may match more than once ("rest 2 bars, play 2 bars" is split already; this catches "at 60 for 4 bars")
     for (let guard = 0; guard < 4; guard++) {
       const m = rest.match(re)
       if (!m || m.index === undefined || !m[0].trim()) break
       const made = make(m, text)
-      if (!made.length) break // the extractor declined: leave the words for the leftover
-      found.push({ at: m.index, steps: made })
+      // declined ("6 bpm" is out of range): keep those words as not-understood and keep looking ("…60 bpm")
+      if (!made.length) declined.push(m[0].trim())
+      else found.push({ at: m.index, steps: made })
       rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index + m[0].length)
     }
   }
@@ -293,8 +303,8 @@ function parseClause(text: string): Clause {
   // and "start clicking" is one start, not two
   const deduped = (steps.some((s) => s.kind === "play") ? steps.filter((s) => s.kind !== "start") : steps)
     .filter((s, i, all) => (s.kind !== "start" && s.kind !== "stop") || all.findIndex((x) => x.kind === s.kind) === i)
-  const leftover = rest.replace(FILLER, " ").replace(/\s+/g, " ").trim()
-  return { text, steps: deduped, leftover }
+  const leftover = [...declined, rest].join(" ").replace(FILLER, " ").replace(/\s+/g, " ").trim()
+  return { text, steps: deduped, leftover, ...(item ? { label: +item[1] } : {}) }
 }
 
 export function parse(input: string): Parsed {
@@ -303,9 +313,19 @@ export function parse(input: string): Parsed {
   for (let i = 1; i < clauses.length; i++) {
     const prev = clauses[i - 1].steps, cur = clauses[i].steps
     const open = prev.at(-1)
-    if (open?.kind === "repeat" && !open.until && !open.times && cur[0]?.kind === "repeat") {
-      Object.assign(open, cur[0]); cur.shift()
+    const next = cur[0]
+    if (open?.kind === "repeat" && !open.until && !open.times && next?.kind === "repeat") {
+      for (const [k, v] of Object.entries(next)) if (v !== undefined) (open as Record<string, unknown>)[k] = v
+      cur.shift()
     }
+  }
+  // "repeat from 2": point at the first real step of list item 2. Without numbering, clauses count as items.
+  const numbered = clauses.some((c) => c.label !== undefined)
+  for (const c of clauses) for (const st of c.steps) {
+    if (st.kind !== "repeat" || st.fromLabel === undefined) continue
+    const item = numbered ? clauses.find((x) => x.label === st.fromLabel) : clauses[st.fromLabel - 1]
+    st.from = item?.steps.find((x) => x.kind !== "start")
+    if (!st.from) st.fromLabel = undefined // no such item: fall back to the default loop
   }
   return { input, clauses, steps: clauses.flatMap((c) => c.steps) }
 }
@@ -326,7 +346,10 @@ export function describe(s: Step): string {
     case "sub": return SUB_NAME[s.sub]
     case "countIn": return `count in ${plural(s.n, s.unit)}`
     case "play": return `${s.muted ? "silent" : "click"} ${plural(s.n, s.unit)}`
-    case "repeat": return s.until ? `repeat until ${s.until}` : s.times ? `repeat ${plural(s.times, "times")}` : "repeat forever"
+    case "repeat": {
+      const from = s.fromLabel !== undefined ? ` from #${s.fromLabel}` : ""
+      return s.until ? `repeat${from} until ${s.until}` : s.times ? `repeat${from} ${plural(s.times, "times")}` : `repeat${from} forever`
+    }
     case "start": return "start"
     case "stop": return "stop"
   }

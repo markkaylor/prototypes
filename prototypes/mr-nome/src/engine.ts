@@ -69,8 +69,11 @@ export function compile(input: Step[]): Program {
     if (s.kind === "countIn") segment = i + 1
     if (s.kind !== "repeat") return
     // don't loop back over absolute tempo or a start marker: that would reset a ramp forever
-    let from = segment
-    while (from < i && (steps[from].kind === "tempo" || steps[from].kind === "start")) from++
+    // an explicit "repeat from 2" wins over the default (which skips the count-in)
+    const at = s.from ? steps.indexOf(s.from) : -1
+    const explicit = at >= 0 && at < i
+    let from = explicit ? at : segment
+    if (!explicit) while (from < i && (steps[from].kind === "tempo" || steps[from].kind === "start")) from++
     loopStart[i] = from
     if (s.until) for (let j = from; j < i; j++) if (steps[j].kind === "tempoBy") target[j] = { bpm: s.until, repeat: i }
     segment = i + 1
