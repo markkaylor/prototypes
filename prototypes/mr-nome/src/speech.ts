@@ -93,31 +93,76 @@ export type Heard = { text: string; confidence: number }
 let onFinal: (alts: Heard[], engine: Engine) => void = () => {}
 export const onCommand = (fn: (alts: Heard[], engine: Engine) => void) => { onFinal = fn }
 
-function begin(continuous: boolean) {
+/*
+ * End-of-utterance. The recogniser marks a phrase "final" at every short pause, so acting on each
+ * one runs "click at 60" while you're still saying "…count in 4". Instead, collect final phrases and
+ * act once you've finished: on key release (hold), or after a stretch of silence (tap, hands-free).
+ */
+type Mode = "hold" | "tap" | "handsFree"
+const SILENCE_MS: Record<Mode, number | null> = { hold: null, tap: 1200, handsFree: 1500 }
+/** Said on its own, these act immediately. */
+const URGENT = /^\s*(?:stop|pause|halt|shh+|hold on|hold it|wait|enough|that's enough)[\s.!]*$/i
+
+let mode: Mode = "tap"
+let engine: Engine = "cloud"
+let pending: Heard[][] = [] // one entry per final phrase: its alternatives
+let interimText = ""
+let silence: number | undefined
+
+const pendingText = () => pending.map((alts) => alts[0].text).join(" ")
+const showInterim = () => set({ interim: [pendingText(), interimText].filter(Boolean).join(" ") })
+
+/** Join the collected phrases into one utterance, keeping alternatives aligned phrase by phrase. */
+function flush() {
+  clearTimeout(silence)
+  interimText = ""
+  if (!pending.length) { set({ interim: "" }); return }
+  const n = Math.max(...pending.map((a) => a.length))
+  const alts = Array.from({ length: n }, (_, i) => ({
+    text: pending.map((a) => (a[i] ?? a[0]).text).join(" ").replace(/\s+/g, " ").trim(),
+    confidence: Math.min(...pending.map((a) => (a[i] ?? a[0]).confidence)),
+  }))
+  pending = []
+  set({ interim: "" })
+  onFinal(alts, engine)
+  if (mode === "tap") rec?.stop()
+}
+
+function heardSomething() {
+  clearTimeout(silence)
+  const ms = SILENCE_MS[mode]
+  if (ms !== null) silence = window.setTimeout(flush, ms)
+}
+
+function begin(m: Mode) {
   if (!Ctor) return
   rec?.abort()
+  clearTimeout(silence)
+  pending = []; interimText = ""
+  mode = m
   const r = new Ctor()
   rec = r
   r.lang = LANG
-  r.continuous = continuous
+  r.continuous = true // we decide when the utterance ends, not the recogniser
   r.interimResults = true
   r.maxAlternatives = 3 // logged, to spot homophones ("for" / "four")
-  const engine: Engine = state.useHints && state.hints === "available" ? "on-device" : "cloud"
+  engine = state.useHints && state.hints === "available" ? "on-device" : "cloud"
   if (engine === "on-device") {
     r.processLocally = true
     r.phrases = VOCAB.map(([p, boost]) => new w.SpeechRecognitionPhrase!(p, boost))
   }
   r.onresult = (e) => {
+    if (rec !== r) return
     let interim = ""
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const res = e.results[i]
-      if (res.isFinal) {
-        set({ interim: "" })
-        onFinal(Array.from(res, (a) => ({ text: a.transcript.trim(), confidence: a.confidence })), engine)
-      }
+      if (res.isFinal) pending.push(Array.from(res, (a) => ({ text: a.transcript.trim(), confidence: a.confidence })))
       else interim += res[0].transcript
     }
-    if (interim) set({ interim })
+    interimText = interim.trim()
+    showInterim()
+    if (!interimText && URGENT.test(pendingText())) { flush(); return }
+    heardSomething()
   }
   r.onerror = (e) => {
     if (e.error === "no-speech" || e.error === "aborted") return
@@ -130,8 +175,9 @@ function begin(continuous: boolean) {
   }
   r.onend = () => {
     if (rec !== r) return
-    // hands-free: the browser ends sessions after silence, so start a new one (picking up any engine change)
-    if (state.handsFree) { begin(true); return }
+    flush() // whatever was said before the session ended
+    // hands-free: the browser ends sessions after a while, so start a new one (picking up any engine change)
+    if (state.handsFree) { begin("handsFree"); return }
     rec = null
     set({ listening: false, interim: "" })
   }
@@ -139,11 +185,33 @@ function begin(continuous: boolean) {
   r.start()
 }
 
-function restartIfHandsFree() { if (state.handsFree && state.listening) begin(true) }
+function restartIfHandsFree() { if (state.handsFree && state.listening) begin("handsFree") }
 
-export function talk() { if (state.listening && !state.handsFree) { rec?.stop(); return } set({ handsFree: false }); begin(false) }
+/** Tap: start listening; act after a pause. Tapping again sends what's been heard right away. */
+export function talk() {
+  if (state.listening && !state.handsFree) { rec?.stop(); return } // onend flushes
+  set({ handsFree: false })
+  begin("tap")
+}
+
+/** Hold-to-talk: listen while held, act on release. A quick press counts as a tap. */
+let heldAt = 0
+export function holdStart() {
+  if (state.handsFree) return
+  if (state.listening) { rec?.stop(); heldAt = 0; return } // a press while tap-listening sends it
+  heldAt = performance.now()
+  begin("hold")
+}
+export function holdEnd() {
+  if (!heldAt || mode !== "hold" || !state.listening) return
+  const quick = performance.now() - heldAt < 300
+  heldAt = 0
+  if (quick) { mode = "tap"; heardSomething() } // became a tap: wait for a pause instead
+  else rec?.stop() // the recogniser sends its last final phrase, then onend flushes
+}
+
 export function setHandsFree(on: boolean) {
   set({ handsFree: on })
-  if (on) begin(true)
+  if (on) begin("handsFree")
   else { rec?.stop() }
 }

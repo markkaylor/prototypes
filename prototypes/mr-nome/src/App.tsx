@@ -7,7 +7,7 @@ import { cn } from "@prototypes/ui/lib/utils"
 import { command, getState, start, toggle, useEngine, type Beat, type Program } from "./engine"
 import { describe, SUB_NAME } from "./parse"
 import { clearAll, run, setNote, setVerdict, toMarkdown, useReviews, type Review } from "./review"
-import { onCommand, setHandsFree, setUseHints, talk, useSpeech } from "./speech"
+import { holdEnd, holdStart, onCommand, setHandsFree, setUseHints, talk, useSpeech } from "./speech"
 
 const SPRING = "transition-transform duration-150 ease-[cubic-bezier(.3,1.6,.5,1)] motion-reduce:transition-none"
 
@@ -46,10 +46,12 @@ export default function App() {
       if (t.closest?.("input, textarea, select, button, a, [contenteditable]") || ev.metaKey || ev.ctrlKey || ev.altKey) return
       if (ev.key === " ") { ev.preventDefault(); toggle() }
       else if (ev.key === "/") { ev.preventDefault(); inputRef.current?.focus() }
-      else if (ev.key === "v" && !ev.repeat) talk()
+      else if (ev.key === "v" && !ev.repeat) holdStart()
     }
+    const onKeyUp = (ev: KeyboardEvent) => { if (ev.key === "v") holdEnd() }
     addEventListener("keydown", onKey)
-    return () => removeEventListener("keydown", onKey)
+    addEventListener("keyup", onKeyUp)
+    return () => { removeEventListener("keydown", onKey); removeEventListener("keyup", onKeyUp) }
   }, [])
 
   return (
@@ -183,7 +185,8 @@ function CommandBar({ inputRef }: { inputRef: React.RefObject<HTMLInputElement |
         <span className="min-w-0 truncate">
           {sp.error ? <span className="text-red">Mic: {sp.error}</span>
             : sp.interim ? <span className="text-ink">“{sp.interim}”</span>
-            : sp.supported ? <>Type, or press <Kbd>V</Kbd> and speak. <Kbd>/</Kbd> to type.</>
+            : sp.listening ? "Listening… finish talking and I'll act."
+            : sp.supported ? <>Hold <Kbd>V</Kbd> and speak, or tap it to talk until you pause. <Kbd>/</Kbd> to type.</>
             : "Speech isn't available in this browser. Try Chrome or Safari."}
         </span>
         {sp.supported && (
