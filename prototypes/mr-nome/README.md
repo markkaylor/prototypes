@@ -15,7 +15,9 @@ Tick **Hands-free** to keep the mic open while the click plays.
 
 - `src/parse.ts`: rule-based parser, no model. Normalises speech ("one twenty" → 120, "first" → ord1), splits on commas / "then" / "and", runs regex extractors per clause. Anything it can't place shows as a red dashed `? leftover` chip.
 - `src/engine.ts`: Web Audio lookahead scheduler plus a program runner that advances one beat at a time. Commands with a length, count-in or repeat become a **routine** (replaces the current one and runs from the top). Everything else (tempo, meter, accents, feel, faster/slower) changes **on the fly** without restarting.
-- `src/speech.ts`: Web Speech API, push-to-talk or hands-free.
+- `src/speech.ts`: Web Speech API, push-to-talk or hands-free. Two engines:
+  - **cloud** (default): the browser's own service.
+  - **on-device + vocabulary hints**: Chrome's local model, told in advance to expect our words (`accent`, `click`, `count in`…) via `SpeechRecognitionPhrase`. Chrome only accepts hints with `processLocally`, so this needs a one-time model download (the checkbox triggers it). Same idea as Claude Code voice mode's `keyterms`, but free and on-device. Each voice entry in the log records which engine heard it, so the two can be compared.
 
 ## Reviewing what it heard
 

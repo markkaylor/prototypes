@@ -7,7 +7,7 @@ import { cn } from "@prototypes/ui/lib/utils"
 import { command, getState, start, toggle, useEngine, type Beat, type Program } from "./engine"
 import { describe, SUB_NAME } from "./parse"
 import { clearAll, run, setNote, setVerdict, toMarkdown, useReviews, type Review } from "./review"
-import { onCommand, setHandsFree, talk, useSpeech } from "./speech"
+import { onCommand, setHandsFree, setUseHints, talk, useSpeech } from "./speech"
 
 const SPRING = "transition-transform duration-150 ease-[cubic-bezier(.3,1.6,.5,1)] motion-reduce:transition-none"
 
@@ -24,7 +24,16 @@ const EXAMPLES = [
   "stop",
 ]
 
-onCommand((alts) => run(alts[0].text, "voice", alts))
+const HINT_LABEL = {
+  unsupported: "",
+  unavailable: "Vocabulary hints (not available here)",
+  downloadable: "Vocabulary hints (downloads a speech model)",
+  downloading: "Vocabulary hints (downloads a speech model)",
+  installing: "Downloading speech model…",
+  available: "Vocabulary hints (on-device)",
+}
+
+onCommand((alts, engine) => run(alts[0].text, "voice", alts, engine))
 
 export default function App() {
   const e = useEngine()
@@ -178,10 +187,27 @@ function CommandBar({ inputRef }: { inputRef: React.RefObject<HTMLInputElement |
             : "Speech isn't available in this browser. Try Chrome or Safari."}
         </span>
         {sp.supported && (
-          <label className="flex cursor-pointer items-center gap-2 select-none">
-            <input type="checkbox" checked={sp.handsFree} onChange={(ev) => setHandsFree(ev.target.checked)} className="size-4 accent-blue" />
-            Hands-free (keeps listening)
-          </label>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {sp.hints !== "unsupported" && (
+              <label
+                className={cn("flex items-center gap-2 select-none", sp.hints === "unavailable" ? "opacity-50" : "cursor-pointer")}
+                title="Chrome's on-device speech model, told in advance to expect words like “accent” and “click”. Free, private, works offline."
+              >
+                <input
+                  type="checkbox"
+                  checked={sp.useHints}
+                  disabled={sp.hints === "unavailable" || sp.hints === "installing"}
+                  onChange={(ev) => setUseHints(ev.target.checked)}
+                  className="size-4 accent-blue"
+                />
+                {HINT_LABEL[sp.hints]}
+              </label>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 select-none">
+              <input type="checkbox" checked={sp.handsFree} onChange={(ev) => setHandsFree(ev.target.checked)} className="size-4 accent-blue" />
+              Hands-free (keeps listening)
+            </label>
+          </div>
         )}
       </div>
     </div>
@@ -296,6 +322,7 @@ function Entry({ l }: { l: Review }) {
       <p className="flex items-start gap-1.5">
         {l.source === "voice" && <MicIcon className="mt-0.5 size-3.5 shrink-0 text-blue" aria-label="Spoken" />}
         <span>“{l.transcript}”</span>
+        {l.engine === "on-device" && <span className="ml-auto shrink-0 text-xs tracking-widest text-muted-foreground uppercase" title="Heard by Chrome's on-device model with vocabulary hints">hints</span>}
       </p>
       {l.alternatives && (
         <p className="mt-0.5 text-xs text-muted-foreground">

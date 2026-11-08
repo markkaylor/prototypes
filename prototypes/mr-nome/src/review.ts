@@ -19,6 +19,8 @@ export type Review = {
   alternatives?: Alt[]
   /** Index into alternatives of the guess that was acted on, when it wasn't the first. */
   used?: number
+  /** Which recogniser heard it (voice only): the browser's cloud service, or on-device with vocabulary hints. */
+  engine?: "cloud" | "on-device"
   /** What it understood, clause by clause: step chips and leftover words. */
   understood: { steps: string[]; leftover: string }[]
   outcome: string
@@ -64,7 +66,7 @@ function score(text: string) {
 }
 
 /** Run a command and log it. For speech, act on whichever guess the rules understand best. */
-export function run(heard: string, source: Review["source"], alternatives?: Alt[]) {
+export function run(heard: string, source: Review["source"], alternatives?: Alt[], engine?: Review["engine"]) {
   if (!heard.trim()) return // empty recognitions (noise, a cough) aren't commands
   let used = 0
   if (alternatives && alternatives.length > 1) {
@@ -81,6 +83,7 @@ export function run(heard: string, source: Review["source"], alternatives?: Alt[
       transcript,
       ...(alternatives && alternatives.length > 1 ? { alternatives } : {}),
       ...(used ? { used } : {}),
+      ...(engine ? { engine } : {}),
       understood: parsed.clauses.map((c) => ({ steps: c.steps.map(describe), leftover: c.leftover })),
       outcome,
     },
@@ -102,7 +105,7 @@ export function toMarkdown(list: Review[] = entries): string {
   const lines = [`# Mr. Nome transcripts (${list.length} commands, ${wrong} marked wrong)`, ""]
   for (const e of [...list].reverse()) {
     const mark = e.verdict === "right" ? "✓" : e.verdict === "wrong" ? "✗" : "·"
-    lines.push(`- ${mark} “${e.transcript}” (${e.source})`)
+    lines.push(`- ${mark} “${e.transcript}” (${e.engine ? `${e.source}, ${e.engine}` : e.source})`)
     if (e.alternatives) lines.push(`  - heard as: ${e.alternatives.map((a, i) => `“${a.text}” ${a.confidence.toFixed(2)}${i === (e.used ?? 0) ? " (used)" : ""}`).join(", ")}`)
     const got = e.understood.flatMap((c) => [...c.steps, ...(c.leftover ? [`? ${c.leftover}`] : [])]).join(" · ") || "nothing"
     lines.push(`  - understood: ${got}`)
