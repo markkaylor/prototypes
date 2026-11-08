@@ -32,7 +32,9 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.target instanceof HTMLInputElement || ev.metaKey || ev.ctrlKey || ev.altKey) return
+      // shortcuts only when nothing is focused: never while typing, and a focused button already handles Space itself
+      const t = ev.target as HTMLElement
+      if (t.closest?.("input, textarea, select, button, a, [contenteditable]") || ev.metaKey || ev.ctrlKey || ev.altKey) return
       if (ev.key === " ") { ev.preventDefault(); toggle() }
       else if (ev.key === "/") { ev.preventDefault(); inputRef.current?.focus() }
       else if (ev.key === "v" && !ev.repeat) talk()
