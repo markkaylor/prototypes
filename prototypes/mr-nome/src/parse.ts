@@ -307,8 +307,8 @@ function parseClause(raw: string): Clause {
   return { text, steps: deduped, leftover, ...(item ? { label: +item[1] } : {}) }
 }
 
-export function parse(input: string): Parsed {
-  const clauses = splitClauses(normalize(input)).map(parseClause)
+/** Cross-clause fix-ups: merge "repeat" + "until 100", and point "repeat from 2" at item 2. */
+function link(clauses: Clause[]) {
   // "every 4 bars add 5, stop at 100": an open repeat followed by "until 100" is one repeat
   for (let i = 1; i < clauses.length; i++) {
     const prev = clauses[i - 1].steps, cur = clauses[i].steps
@@ -319,7 +319,7 @@ export function parse(input: string): Parsed {
       cur.shift()
     }
   }
-  // "repeat from 2": point at the first real step of list item 2. Without numbering, clauses count as items.
+  // "repeat from 2": point at the first real step of item 2. Without numbering, clauses count as items.
   const numbered = clauses.some((c) => c.label !== undefined)
   for (const c of clauses) for (const st of c.steps) {
     if (st.kind !== "repeat" || st.fromLabel === undefined) continue
@@ -327,7 +327,31 @@ export function parse(input: string): Parsed {
     st.from = item?.steps.find((x) => x.kind !== "start")
     if (!st.from) st.fromLabel = undefined // no such item: fall back to the default loop
   }
+}
+
+export function parse(input: string): Parsed {
+  const clauses = splitClauses(normalize(input)).map(parseClause)
+  link(clauses)
   return { input, clauses, steps: clauses.flatMap((c) => c.steps) }
+}
+
+/** A routine built line by line: line N is item N, so "repeat from 2" means line 2. */
+export function parseLines(lines: string[]): { lines: Clause[][]; steps: Step[] } {
+  const perLine = lines.map((text, i) =>
+    splitClauses(normalize(text)).map((c) => ({ ...parseClause(c), label: i + 1 })),
+  )
+  const all = perLine.flat()
+  link(all)
+  return { lines: perLine, steps: all.flatMap((c) => c.steps) }
+}
+
+/** Split one typed or spoken entry into routine lines: on commas, semicolons and "then", not "and". */
+export function splitEntry(text: string): string[] {
+  return text
+    .replace(/(^|[,;]\s*)\d{1,2}[.)]\s+/g, "$1") // drop list numbering, the lines are numbered already
+    .split(/\s*(?:[,;]|\band then\b|\bthen\b|\bafter that\b)\s*/i)
+    .map((t) => t.trim().replace(/^and\s+/i, ""))
+    .filter(Boolean)
 }
 
 /* ---------- describing steps back to the user ---------- */

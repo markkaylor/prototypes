@@ -5,8 +5,7 @@
  * plugin in vite.config.ts) so the notes can be read straight from the repo.
  */
 import { useSyncExternalStore } from "react"
-import { command } from "./engine"
-import { describe, parse } from "./parse"
+import { describe, parse, type Parsed } from "./parse"
 
 export type Alt = { text: string; confidence: number }
 
@@ -58,6 +57,11 @@ function save() {
 }
 const commit = (next: Review[]) => { entries = next; emit(); save() }
 
+/** What to do with an entry. The app decides (add a routine line, start, stop, edit). */
+type Handler = (text: string) => { parsed: Parsed; outcome: string }
+let handle: Handler = (text) => ({ parsed: parse(text), outcome: "" })
+export const setHandler = (fn: Handler) => { handle = fn }
+
 /** How much of a guess the rules understood: steps found, minus words left over. */
 function score(text: string) {
   const p = parse(text)
@@ -74,7 +78,7 @@ export function run(heard: string, source: Review["source"], alternatives?: Alt[
     used = scores.indexOf(Math.max(...scores)) // ties keep the recogniser's own favourite
   }
   const transcript = alternatives?.[used]?.text ?? heard
-  const { parsed, outcome } = command(transcript)
+  const { parsed, outcome } = handle(transcript)
   commit([
     {
       id: crypto.randomUUID(),

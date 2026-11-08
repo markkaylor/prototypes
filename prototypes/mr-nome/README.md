@@ -8,12 +8,18 @@ A metronome you talk to. Throwaway code that asks one question:
 pnpm --filter mr-nome dev   # http://localhost:5174
 ```
 
-Type a command or press **V** and speak (Chrome, Edge, Safari). **Space** starts and stops, **/** focuses the box.
-Tick **Hands-free** to keep the mic open while the click plays.
+Build a **routine one step at a time**: each line is one short instruction ("Count in 4 beats"), numbered, editable and deletable. Type in the box at the bottom or hold **V** and speak. **Space** (or saying "start" / "stop") plays it, with a playhead on the current line. "Repeat from 2" means line 2; deleting a line renumbers those references. "undo", "delete 3" and "clear all" edit by voice.
+
+Tick **Hands-free** to keep the mic open while the click plays. Entries where nothing is understood (room chatter) aren't added.
+
+## Why line by line
+
+The first version parsed a whole routine from one sentence. Held-out testing plateaued around 50% on fresh phrasings, and most failures were in long routines. One short instruction per line is what the rules handle well, and a wrong line is easy to see and fix. Long sentences still work: commas and "then" split them into lines.
 
 ## How it works
 
 - `src/parse.ts`: rule-based parser, no model. Normalises speech ("one twenty" → 120, "first" → ord1), splits on commas / "then" / "and", runs regex extractors per clause. Anything it can't place shows as a red dashed `? leftover` chip.
+- `src/routine.ts`: the line list (localStorage), compiling it via `parseLines` (line N = item N), and the step → line map for the playhead.
 - `src/engine.ts`: Web Audio lookahead scheduler plus a program runner that advances one beat at a time. Commands with a length, count-in or repeat become a **routine** (replaces the current one and runs from the top). Everything else (tempo, meter, accents, feel, faster/slower) changes **on the fly** without restarting.
 - `src/speech.ts`: Web Speech API, push-to-talk or hands-free. Two engines:
   - **cloud** (default): the browser's own service.
