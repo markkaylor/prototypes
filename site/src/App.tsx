@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
 import { cn } from "@prototypes/ui/lib/utils"
 import { Shape, type ShapeKind } from "@prototypes/ui/components/shape"
@@ -89,6 +89,14 @@ function Header() {
       )
     })
   }, [pieces])
+
+  // On load, play the shuffle once so visitors see the shapes are alive. (The timer's cleanup also keeps
+  // StrictMode's double-mount in dev from shuffling twice.)
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    const t = setTimeout(reshuffle, 600)
+    return () => clearTimeout(t)
+  }, [])
 
   return (
     <header className="relative border-b-2 border-ink pt-20 pb-14 sm:pt-28 sm:pb-12">
