@@ -41,8 +41,11 @@ type State = {
 const BPM_MIN = 20, BPM_MAX = 400
 const clampBpm = (n: number) => Math.round(Math.min(BPM_MAX, Math.max(BPM_MIN, n)))
 
+/** Where every run starts. Only the routine's blocks change it: no Accent block, no accents. */
+export const BASE: Settings = { bpm: 100, meter: { beats: 4, unit: 4 }, accents: [], sub: 1 }
+
 let state: State = {
-  settings: { bpm: 100, meter: { beats: 4, unit: 4 }, accents: [1], sub: 1 },
+  settings: BASE,
   running: false,
   program: null,
   now: null,
@@ -222,7 +225,7 @@ let raf = 0
 
 export function start(program: Program | null = state.program) {
   const c = ensureCtx()
-  live = state.running ? live : state.settings // keep on-the-fly changes when restarting
+  live = BASE // every run plays the routine from the top
   stopAudio()
   pos = freshPos()
   set({ program, running: true, now: null })
@@ -237,17 +240,28 @@ export function stop() { stopAudio(); set({ running: false, now: null }) }
 export const toggle = () => (state.running ? stop() : start(null))
 
 /** Apply settings now, on the running beat, without restarting. */
-/** Dry-run a routine without audio, returning a beat trace ("c1@60 … X@60 x@60 … end"). */
-export function simulate(steps: Step[], maxBeats = 400) {
+/** Run a program on a scratch copy of the runner, with no audio, then put everything back. */
+function dryRun<T>(program: Program, fn: () => T): T {
   const saved = { state, live, pos }
-  state = { ...state, program: compile(steps) }
-  live = state.settings; pos = freshPos()
-  const out: string[] = []
-  for (let i = 0; i < maxBeats; i++) {
-    const b = nextBeat()
-    if (!b) { out.push("end"); break }
-    out.push(b.pos.countIn ? `c${b.pos.countIn}@${b.settings.bpm}` : `${b.muted ? "_" : b.accent ? "X" : "x"}@${b.settings.bpm}`)
-  }
-  ;({ state, live, pos } = saved)
-  return out.join(" ")
+  state = { ...state, program }
+  live = BASE; pos = freshPos()
+  try { return fn() } finally { ({ state, live, pos } = saved) }
+}
+
+/** Dry-run a routine, returning a beat trace ("c1@60 … X@60 x@60 … end"). */
+export function simulate(steps: Step[], maxBeats = 400) {
+  return dryRun(compile(steps), () => {
+    const out: string[] = []
+    for (let i = 0; i < maxBeats; i++) {
+      const b = nextBeat()
+      if (!b) { out.push("end"); break }
+      out.push(b.pos.countIn ? `c${b.pos.countIn}@${b.settings.bpm}` : `${b.muted ? "_" : b.accent ? "X" : "x"}@${b.settings.bpm}`)
+    }
+    return out.join(" ")
+  })
+}
+
+/** The settings the routine's first beat plays with: what the display shows while stopped. */
+export function startSettings(program: Program): Settings {
+  return dryRun(program, () => nextBeat()?.settings ?? live) // no beat at all: the settings it applied
 }

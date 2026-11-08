@@ -11,9 +11,9 @@ pnpm --filter mr-nome test  # vitest
 
 Build a routine from the **Blocks** list. Each block reads as a sentence with its values as fields ("Click for [8] [beats]"). Type a number or nudge it with ↑/↓ (Shift: by 10). Drag the grip to reorder, or focus it and use ↑/↓. **Space** plays the routine, with a playhead on the current block.
 
-- **Circles** (blue) change a setting and take no time: tempo, speed up / slow down, double / halve, time signature, accents, subdivision.
+- **Triangles** (yellow) change a setting and take no time: tempo (set, speed up, slow down, multiply, divide), meter, accents, subdivision.
 - **Squares** (red) take time: count in, click, rest (a hollow square).
-- **The triangle** (yellow) loops back. A repeat runs until a tempo, a number of extra times, or forever. Its blue bracket shows what it loops over, and "back to" picks where the loop starts.
+- **Circles** (blue) loop back. A repeat runs until a tempo, a number of extra times, or forever. Its blue bracket shows what it loops over, and "back to" picks where the loop starts.
 
 ## How it works
 

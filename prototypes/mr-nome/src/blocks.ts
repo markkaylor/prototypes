@@ -69,6 +69,10 @@ export function addBlock(kind: Kind, extra?: Partial<BlockBody>) {
   commit([...blocks, { id: newId(), ...DEFAULTS[kind](), ...extra } as Block])
 }
 
+/** Replace a block's body but keep its id (and so its place in any loop). */
+export const setBody = (id: string, body: BlockBody) =>
+  commit(blocks.map((b) => (b.id === id ? ({ id, ...body } as Block) : b)))
+
 export const updateBlock = (id: string, patch: Partial<BlockBody>) =>
   commit(blocks.map((b) => (b.id === id ? ({ ...b, ...patch } as Block) : b)))
 
@@ -105,6 +109,21 @@ export function loadExample() {
   ])
 }
 
+/* ---------- how the routine ends ---------- */
+
+/** After the last block: keep clicking at the final settings, or stop. */
+export type End = "continue" | "stop"
+const END_KEY = "mr-nome:end"
+let end: End = (() => { try { return localStorage.getItem(END_KEY) === "stop" ? "stop" : "continue" } catch { return "continue" } })()
+const endListeners = new Set<() => void>()
+export const getEnd = () => end
+export const useEnd = () => useSyncExternalStore((l) => { endListeners.add(l); return () => endListeners.delete(l) }, () => end)
+export function setEnd(next: End) {
+  end = next
+  try { localStorage.setItem(END_KEY, next) } catch { /* memory only */ }
+  endListeners.forEach((l) => l())
+}
+
 /* ---------- compile ---------- */
 
 export type Compiled = {
@@ -113,13 +132,13 @@ export type Compiled = {
   blockOf: Map<Step, number>
   /** For each repeat block (0-based): the block its loop starts at. */
   loops: Map<number, number>
-  /** True when nothing in the routine has a length: it just keeps clicking. */
+  /** True when nothing in the routine takes time: with "then stop" it plays nothing. */
   open: boolean
   /** Repeat blocks with an "until" that can never be reached: nothing in the loop changes the tempo. */
   endless: Set<number>
 }
 
-export function compileBlocks(list: Block[]): Compiled {
+export function compileBlocks(list: Block[], ending: End = "stop"): Compiled {
   const steps: Step[] = []
   const blockOf = new Map<Step, number>()
   const stepOf = new Map<string, Step>()
@@ -134,8 +153,8 @@ export function compileBlocks(list: Block[]): Compiled {
     if (from && steps.indexOf(from) < steps.indexOf(s)) s.from = from
   }
   const open = !steps.some(isTimed)
-  // settings only ("tempo at 60"): apply them, then keep clicking
-  const program = compile(open ? [...steps, { kind: "start" }] : steps)
+  // a start at the end means "keep clicking"
+  const program = compile(ending === "continue" ? [...steps, { kind: "start" }] : steps)
   const loops = new Map<number, number>()
   for (const [r, from] of Object.entries(program.loopStart)) {
     const a = blockOf.get(program.steps[from]), z = blockOf.get(program.steps[+r])
