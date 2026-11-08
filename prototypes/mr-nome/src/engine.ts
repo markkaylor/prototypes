@@ -6,7 +6,7 @@
  * the runner, and the UI shows the snapshot of the beat you're *hearing*, not the one being scheduled.
  */
 import { useSyncExternalStore } from "react"
-import { describe, isTimed, parse, type Meter, type Parsed, type Step, type Sub } from "./parse"
+import { isTimed, type Meter, type Step, type Sub } from "./steps"
 
 export type Settings = { bpm: number; meter: Meter; accents: number[]; sub: Sub }
 
@@ -237,49 +237,10 @@ export function stop() { stopAudio(); set({ running: false, now: null }) }
 export const toggle = () => (state.running ? stop() : start(null))
 
 /** Apply settings now, on the running beat, without restarting. */
-function applyLive(steps: Step[]) {
-  let s = state.running ? live : state.settings
-  for (const st of steps) {
-    if (st.kind === "tempo") s = { ...s, bpm: clampBpm(st.bpm) }
-    if (st.kind === "tempoBy") s = { ...s, bpm: clampBpm(s.bpm + st.delta) }
-    if (st.kind === "tempoMul") s = { ...s, bpm: clampBpm(s.bpm * st.factor) }
-    if (st.kind === "meter") { s = { ...s, meter: st.meter }; if (state.running) pos.barBeat = 0 }
-    if (st.kind === "accent") s = { ...s, accents: st.beats === "all" ? range(s.meter.beats) : st.beats }
-    if (st.kind === "sub") s = { ...s, sub: st.sub }
-  }
-  live = s
-  if (!state.running) set({ settings: s })
-}
-
-/* ---------- commands ---------- */
-
-/** Parse and act. Returns what it understood and what it did, for the review log. */
-export function command(text: string): { parsed: Parsed; outcome: string } {
-  const parsed = parse(text)
-  const steps = parsed.steps
-  let outcome: string
-  if (!steps.length) outcome = "Didn't catch anything I can do."
-  else if (steps.some(isTimed)) {
-    // a routine: replace the program and run it from the top
-    start(compile(steps))
-    outcome = "Running it as a routine."
-  } else {
-    // settings and transport: change things on the fly
-    const wasRunning = state.running
-    applyLive(steps)
-    const last = steps.filter((s) => s.kind === "start" || s.kind === "stop").at(-1)
-    if (last?.kind === "stop") { stop(); outcome = "Stopped." }
-    else if (last?.kind === "start" && !wasRunning) { start(null); outcome = "Clicking." }
-    else outcome = wasRunning ? `Changed on the fly: ${steps.map(describe).join(", ")}.` : `Set: ${steps.map(describe).join(", ")}.`
-    if (last?.kind === "start" && wasRunning && state.program) { start(null); outcome = "Free clicking." }
-  }
-  return { parsed, outcome }
-}
-
-/** Dry-run a routine without audio (for poking at the runner from the console: `simulate("…")`). */
-export function simulate(text: string, maxBeats = 400) {
+/** Dry-run a routine without audio, returning a beat trace ("c1@60 … X@60 x@60 … end"). */
+export function simulate(steps: Step[], maxBeats = 400) {
   const saved = { state, live, pos }
-  state = { ...state, program: compile(parse(text).steps) }
+  state = { ...state, program: compile(steps) }
   live = state.settings; pos = freshPos()
   const out: string[] = []
   for (let i = 0; i < maxBeats; i++) {

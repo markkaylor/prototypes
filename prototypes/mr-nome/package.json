@@ -3,12 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "A metronome you talk to. Say “click at 60, count in 4, click 4, up 10, repeat until 120” and it builds and runs the practice routine.",
+  "description": "A metronome you program. Stack blocks (tempo, count in, click, speed up, repeat) into a practice routine and it plays it, with a playhead on the current block.",
   "prototype": {
     "title": "Mr. Nome",
     "tags": [
       "Metronome",
-      "Speech",
+      "Visual programming",
       "Web Audio"
     ],
     "created": "2026-11-08"
@@ -20,7 +20,6 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@huggingface/transformers": "4.3.1",
     "@prototypes/ui": "workspace:*",
     "lucide-react": "^1.70.0",
     "react": "^19.3.1",

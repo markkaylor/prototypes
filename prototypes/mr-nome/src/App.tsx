@@ -1,89 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CheckIcon, CopyIcon, CornerDownLeftIcon, MicIcon, PlayIcon, RotateCcwIcon, SquareIcon, XIcon } from "lucide-react"
+import { GripVerticalIcon, PlayIcon, RotateCcwIcon, SquareIcon, XIcon } from "lucide-react"
 import { Button } from "@prototypes/ui/components/button"
-import { Input } from "@prototypes/ui/components/input"
 import { Kbd } from "@prototypes/ui/components/kbd"
+import { Shape } from "@prototypes/ui/components/shape"
 import { cn } from "@prototypes/ui/lib/utils"
 import { getState, start, stop, useEngine, type Beat } from "./engine"
-import { describe, normalize, parse, SUB_NAME } from "./parse"
-import { clearAll, run, setHandler, setNote, setVerdict, toMarkdown, useReviews, type Review } from "./review"
 import {
-  addEntry, clearLines, compileLines, getLines, loadExample, removeAt, removeLast, removeLine, updateLine, useLines,
-  type Compiled,
-} from "./routine"
-import { holdEnd, holdStart, onCommand, setChoice, setHandsFree, setUseHints, talk, useSpeech, type Choice } from "./speech"
-import { useWhisper } from "./whisper"
+  addBlock, clearBlocks, compileBlocks, getBlocks, loadExample, meterBefore, moveBlock, removeBlock, updateBlock, useBlocks,
+  type Block, type BlockBody, type Compiled, type Kind,
+} from "./blocks"
+import { SUB_NAME } from "./steps"
 
 const SPRING = "transition-transform duration-150 ease-[cubic-bezier(.3,1.6,.5,1)] motion-reduce:transition-none"
 
-const EXAMPLES = [
-  "Tempo at 60 BPM",
-  "Count in 4 beats",
-  "Click for 8 beats",
-  "Increase tempo by 10",
-  "Repeat from 2 until 120 BPM",
-  "Accent beats 1 and 3",
-  "3/4 time",
-  "Eighth notes",
-  "Rest for 2 bars",
-  "Repeat 3 times",
-]
-
-const HINT_LABEL = {
-  unsupported: "",
-  unavailable: "Vocabulary hints (not available here)",
-  downloadable: "Vocabulary hints (downloads a speech model)",
-  downloading: "Vocabulary hints (downloads a speech model)",
-  installing: "Downloading speech model…",
-  available: "Vocabulary hints (on-device)",
-}
-
 /* ---------- playing the routine ---------- */
 
-// The compile that's playing, so the playhead can map the engine's step back to a line.
+// The compile that's playing, so the playhead can map the engine's step back to a block.
 let playing: Compiled | null = null
-let playedTexts = ""
-const texts = () => getLines().map((l) => l.text)
+let playedBlocks: Block[] | null = null
 function play() {
-  playing = compileLines(texts())
-  playedTexts = JSON.stringify(texts())
+  playedBlocks = getBlocks()
+  playing = compileBlocks(playedBlocks)
   start(playing.program)
 }
 const togglePlay = () => (getState().running ? stop() : play())
 
-/** What a typed or spoken entry does: transport, an edit, or a new routine line. */
-setHandler((text) => {
-  const parsed = parse(text)
-  const n = normalize(text)
-  const kinds = parsed.steps.map((s) => s.kind)
-  const leftover = parsed.clauses.some((c) => c.leftover)
-  if (/^(?:undo|scratch that|delete (?:that|it|the last (?:one|step|line)|last (?:one|step|line))|remove (?:that|it|the last (?:one|step|line)))$/.test(n)) {
-    removeLast(); return { parsed, outcome: "Removed the last step." }
-  }
-  const del = n.match(/^(?:delete|remove|scratch) (?:step |line |number )?(\d{1,2})$/)
-  if (del) { removeAt(+del[1]); return { parsed, outcome: `Removed step ${del[1]}.` } }
-  if (/^(?:clear|delete|remove) (?:all|everything|the routine|all (?:the )?steps)$|^start over$/.test(n)) {
-    clearLines(); return { parsed, outcome: "Cleared the routine." }
-  }
-  if (kinds.length && kinds.every((k) => k === "stop")) { stop(); return { parsed, outcome: "Stopped." } }
-  if (kinds.length && kinds.every((k) => k === "start") && !leftover) { play(); return { parsed, outcome: "Running the routine." } }
-  // a new line, unless nothing in it was understood (hands-free hears the room)
-  if (!parsed.steps.length) return { parsed, outcome: "Didn't catch a step, so nothing was added." }
-  const added = addEntry(text)
-  // log what the routine understood (it can resolve "repeat from 2"; the entry on its own can't)
-  const understood = compileLines(texts()).understood
-  const clauses = added.flatMap((n) => understood[n - 1] ?? [])
-  return {
-    parsed: { input: text, clauses, steps: clauses.flatMap((c) => c.steps) },
-    outcome: `Added step${added.length > 1 ? "s" : ""} ${added.join(", ")}.`,
-  }
-})
-
-onCommand((alts, engine) => run(alts[0].text, "voice", alts, engine))
-
 export default function App() {
   const e = useEngine()
-  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
@@ -91,30 +34,25 @@ export default function App() {
       const t = ev.target as HTMLElement
       if (t.closest?.("input, textarea, select, button, a, [contenteditable]") || ev.metaKey || ev.ctrlKey || ev.altKey) return
       if (ev.key === " ") { ev.preventDefault(); togglePlay() }
-      else if (ev.key === "/") { ev.preventDefault(); inputRef.current?.focus() }
-      else if (ev.key === "v" && !ev.repeat) holdStart()
     }
-    const onKeyUp = (ev: KeyboardEvent) => { if (ev.key === "v") holdEnd() }
     addEventListener("keydown", onKey)
-    addEventListener("keyup", onKeyUp)
-    return () => { removeEventListener("keydown", onKey); removeEventListener("keyup", onKeyUp) }
+    return () => removeEventListener("keydown", onKey)
   }, [])
 
   return (
     <div className="mx-auto min-h-dvh max-w-6xl px-5 pb-16 sm:px-8">
       <header className="flex items-baseline justify-between gap-4 border-b-2 border-ink py-5">
         <h1 className="text-xl font-semibold tracking-tight">Mr. Nome</h1>
-        <p className="text-sm text-muted-foreground">A metronome you talk to</p>
+        <p className="text-sm text-muted-foreground">A metronome you program</p>
       </header>
 
       <main className="grid gap-10 pt-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="flex min-w-0 flex-col gap-8">
           <Display now={e.now} running={e.running} />
-          <RoutineBuilder now={e.now} running={e.running} inputRef={inputRef} />
-          <Examples />
+          <RoutineBuilder now={e.now} running={e.running} />
         </section>
-        <aside className="flex min-w-0 flex-col gap-8">
-          <Log />
+        <aside className="min-w-0 lg:sticky lg:top-8 lg:self-start">
+          <Palette />
         </aside>
       </main>
     </div>
@@ -124,10 +62,10 @@ export default function App() {
 /* ---------- the big display: tempo, meter, beats ---------- */
 function Display({ now, running }: { now: Beat | null; running: boolean }) {
   const { settings } = useEngine()
-  const lines = useLines()
+  const blocks = useBlocks()
   const s = now?.settings ?? settings
   const counting = running && now?.pos.countIn != null
-  const edited = running && JSON.stringify(lines.map((l) => l.text)) !== playedTexts
+  const edited = running && blocks !== playedBlocks
   return (
     <div className="border border-ink p-6 sm:p-8">
       <div className="flex flex-wrap items-end justify-between gap-6">
@@ -137,7 +75,7 @@ function Display({ now, running }: { now: Beat | null; running: boolean }) {
         </div>
         <dl className="grid grid-cols-3 gap-x-6 text-sm">
           <Meta label="Meter" value={`${s.meter.beats}/${s.meter.unit}`} />
-          <Meta label="Feel" value={SUB_NAME[s.sub]} />
+          <Meta label="Subdivide" value={SUB_NAME[s.sub]} />
           <Meta label="Bar" value={running && now && !counting ? String(now.pos.bar) : "–"} />
         </dl>
       </div>
@@ -195,98 +133,116 @@ function Meta({ label, value }: { label: string; value: string }) {
   )
 }
 
-/* ---------- the routine: numbered lines you add, edit and delete ---------- */
-function RoutineBuilder({ now, running, inputRef }: { now: Beat | null; running: boolean; inputRef: React.RefObject<HTMLInputElement | null> }) {
-  const lines = useLines()
-  const compiled = useMemo(() => compileLines(lines.map((l) => l.text)), [lines])
-  const rowRefs = useRef(new Map<string, HTMLInputElement>())
+/* ---------- the routine: a list of blocks you add, edit, reorder and delete ---------- */
 
-  // the playhead: the step being heard, mapped back to the line it came from
+/** Settings are circles, anything that makes sound is a square, the loop is a triangle. */
+const FAMILY: Record<Kind, "circle" | "square" | "triangle"> = {
+  tempo: "circle", tempoBy: "circle", tempoMul: "circle", meter: "circle", accent: "circle", sub: "circle",
+  countIn: "square", play: "square", repeat: "triangle",
+}
+
+function RoutineBuilder({ now, running }: { now: Beat | null; running: boolean }) {
+  const blocks = useBlocks()
+  const compiled = useMemo(() => compileBlocks(blocks), [blocks])
+  const rows = useRef(new Map<string, HTMLLIElement>())
+  const [drag, setDrag] = useState<{ id: string; armed: boolean; at: number | null } | null>(null)
+
+  // the playhead: the step being heard, mapped back to the block it came from
   const engineSteps = useEngine().program?.steps
   const heard = running && now && playing && engineSteps ? engineSteps[now.pos.pc] : undefined
-  const activeLine = heard ? playing!.lineOf.get(heard) : undefined
+  const activeBlock = heard ? playing!.blockOf.get(heard) : undefined
 
-  // which lines sit inside a loop (from the current text, so the bracket follows your edits)
-  const loopLines = new Set<number>()
-  for (const [r, from] of Object.entries(compiled.program.loopStart)) {
-    const steps = compiled.program.steps
-    const a = compiled.lineOf.get(steps[from]), b = compiled.lineOf.get(steps[+r])
-    if (a !== undefined && b !== undefined) for (let i = a; i <= b; i++) loopLines.add(i)
+  // loop brackets, outermost first: [start, end] block indexes
+  const loops = [...compiled.loops].map(([end, startAt]) => [startAt, end] as const).sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))
+
+  const focusBlock = (id: string, sel = "input, select, button[data-field]") =>
+    requestAnimationFrame(() => (rows.current.get(id)?.querySelector(sel) as HTMLElement | null)?.focus())
+  // a block added from the palette: focus its first field, so you can set it straight away
+  useEffect(() => { focusAdded = (id) => focusBlock(id); return () => { focusAdded = null } })
+  const move = (id: string, by: number) => {
+    const i = blocks.findIndex((b) => b.id === id)
+    moveBlock(id, i + by)
+    focusBlock(id, "[data-grip]")
   }
-
-  const focusRow = (i: number) => {
-    const l = getLines()[i]
-    if (l) requestAnimationFrame(() => rowRefs.current.get(l.id)?.focus())
-    else inputRef.current?.focus()
+  const drop = () => {
+    if (drag?.at == null) return setDrag(null)
+    const from = blocks.findIndex((b) => b.id === drag.id)
+    moveBlock(drag.id, drag.at > from ? drag.at - 1 : drag.at)
+    setDrag(null)
   }
 
   return (
     <Panel
       title="Routine"
-      action={lines.length ? (
-        <Button variant="ghost" size="xs" onClick={() => confirm("Clear every step?") && clearLines()}>Clear</Button>
+      action={blocks.length ? (
+        <Button variant="ghost" size="xs" onClick={() => confirm("Clear every step?") && clearBlocks()}>Clear</Button>
       ) : (
         <Button variant="ghost" size="xs" onClick={loadExample}>Load an example</Button>
       )}
     >
-      {!lines.length && (
+      {!blocks.length && (
         <p className="mb-4 text-sm text-muted-foreground">
-          No steps yet. Add them one at a time below, by typing or holding <Kbd>V</Kbd> and talking.
+          No steps yet. Add blocks from the list, or load an example.
         </p>
       )}
-      <ol className="flex flex-col">
-        {lines.map((l, i) => {
-          const understood = compiled.understood[i] ?? []
-          const steps = understood.flatMap((c) => c.steps)
-          const leftover = understood.map((c) => c.leftover).filter(Boolean).join(" ")
-          const active = activeLine === i
+      <ol className="flex flex-col" onDragOver={(ev) => drag && ev.preventDefault()} onDrop={drop}>
+        {blocks.map((b, i) => {
+          const active = activeBlock === i
           const timed = active && heard && (heard.kind === "play" || heard.kind === "countIn")
-          const repeat = steps.find((s) => s.kind === "repeat")
-          const repeatIdx = repeat && playing ? playing.program.steps.findIndex((s) => playing!.lineOf.get(s) === i && s.kind === "repeat") : -1
+          const repeatIdx = b.kind === "repeat" && playing ? playing.program.steps.findIndex((s) => s.kind === "repeat" && playing!.blockOf.get(s) === i) : -1
           const passes = running && repeatIdx >= 0 ? now?.pos.passes[repeatIdx] : undefined
-          const target = repeat?.kind === "repeat" && repeat.from ? compiled.lineOf.get(repeat.from) : undefined
+          const brackets = loops.filter(([a, z]) => a <= i && i <= z)
+          const dropLine = drag?.at === i ? "before" : drag?.at === i + 1 && i === blocks.length - 1 ? "after" : null
           return (
             <li
-              key={l.id}
+              key={b.id}
+              ref={(el) => { if (el) rows.current.set(b.id, el); else rows.current.delete(b.id) }}
+              draggable={drag?.id === b.id && drag.armed}
+              onDragStart={(ev) => { ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", b.id) }}
+              onDragEnd={() => setDrag(null)}
+              onDragOver={(ev) => {
+                if (!drag) return
+                const r = ev.currentTarget.getBoundingClientRect()
+                const at = ev.clientY < r.top + r.height / 2 ? i : i + 1
+                if (at !== drag.at) setDrag({ ...drag, at })
+              }}
               className={cn(
-                "group flex items-start gap-3 border-l-2 py-2 pr-1 pl-3",
-                loopLines.has(i) ? "border-blue" : "border-transparent",
+                "group relative flex items-stretch gap-2 pr-1",
                 active && "bg-yellow/30",
+                drag?.id === b.id && drag.at !== null && "opacity-40",
               )}
             >
-              <span className="w-6 pt-1.5 text-right font-mono text-sm text-muted-foreground tabular-nums">{i + 1}.</span>
-              <div className="min-w-0 flex-1">
-                <input
-                  ref={(el) => { if (el) rowRefs.current.set(l.id, el); else rowRefs.current.delete(l.id) }}
-                  value={l.text}
-                  onChange={(ev) => updateLine(l.id, ev.target.value)}
-                  onKeyDown={(ev) => {
-                    if (ev.key === "Enter") { ev.preventDefault(); focusRow(i + 1) }
-                    if (ev.key === "Backspace" && !l.text) { ev.preventDefault(); removeLine(l.id); focusRow(i - 1) }
-                  }}
-                  aria-label={`Step ${i + 1}`}
-                  className={cn("w-full border-b border-transparent bg-transparent py-1 text-base outline-none hover:border-ink/30 focus:border-blue", active && "font-medium")}
+              {dropLine && <span className={cn("absolute inset-x-0 h-0.5 bg-blue", dropLine === "before" ? "top-0" : "bottom-0")} />}
+              <span className="w-6 shrink-0 py-2.5 text-right font-mono text-sm text-muted-foreground tabular-nums">{i + 1}.</span>
+              {brackets.map(([a, z]) => (
+                <span
+                  key={`${a}-${z}`}
+                  aria-hidden
+                  className={cn("w-2.5 shrink-0 border-l-2 border-blue", i === a && "mt-2 border-t-2", i === z && "mb-2 border-b-2")}
                 />
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {steps.map((s, si) => <span key={si} className="border border-ink px-1.5 py-0.5 text-xs">{describe(s)}</span>)}
-                  {(leftover || (!steps.length && l.text.trim())) && (
-                    <span className="border border-dashed border-red px-1.5 py-0.5 text-xs text-red" title="Not understood">? {leftover || l.text}</span>
-                  )}
-                  {target !== undefined && (
-                    <span className="text-xs text-blue">↺ back to {target + 1}. {lines[target]?.text}</span>
-                  )}
-                </div>
-                {compiled.endless.has(i) && (
-                  <p className="mt-1 text-xs text-red">
-                    Nothing in this loop changes the tempo, so it never reaches {repeat?.kind === "repeat" ? repeat.until : ""}. Add a step like “Increase tempo by 10” before this one.
-                  </p>
-                )}
+              ))}
+              <button
+                data-grip
+                aria-label={`Move step ${i + 1} (arrow keys)`}
+                title="Drag to move"
+                onPointerDown={() => setDrag({ id: b.id, armed: true, at: null })}
+                onPointerUp={() => drag?.at == null && setDrag(null)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "ArrowUp" && i > 0) { ev.preventDefault(); move(b.id, -1) }
+                  if (ev.key === "ArrowDown" && i < blocks.length - 1) { ev.preventDefault(); move(b.id, 1) }
+                }}
+                className="grid w-5 shrink-0 cursor-grab place-items-center text-muted-foreground opacity-40 transition-opacity group-hover:opacity-100 hover:text-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-blue active:cursor-grabbing [&_svg]:size-4"
+              >
+                <GripVerticalIcon />
+              </button>
+              <div className="min-w-0 flex-1 py-1.5">
+                <BlockRow b={b} i={i} blocks={blocks} compiled={compiled} active={active} />
               </div>
-              <div className="flex shrink-0 items-center gap-2 pt-1.5">
+              <div className="flex shrink-0 items-center gap-2">
                 {timed && <span className="font-mono text-xs tabular-nums">{now!.pos.done}/{now!.pos.total}</span>}
                 {passes !== undefined && passes > 0 && <span className="font-mono text-xs text-blue tabular-nums">pass {passes + 1}</span>}
                 <button
-                  onClick={() => removeLine(l.id)}
+                  onClick={() => removeBlock(b.id)}
                   aria-label={`Delete step ${i + 1}`}
                   title="Delete"
                   className="grid size-6 place-items-center text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100 hover:text-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-blue [&_svg]:size-4"
@@ -298,210 +254,224 @@ function RoutineBuilder({ now, running, inputRef }: { now: Beat | null; running:
           )
         })}
       </ol>
-      {lines.length > 0 && (
-        <p className="py-1 pl-12 text-sm text-muted-foreground">{compiled.open ? "Then keeps clicking." : "Then stops."}</p>
+      {blocks.length > 0 && (
+        <p className="py-1 pl-9 text-sm text-muted-foreground">{compiled.open ? "Then keeps clicking." : "Then stops."}</p>
       )}
-      <AddStep inputRef={inputRef} n={lines.length + 1} />
     </Panel>
   )
 }
 
-/* ---------- add a step: type or talk ---------- */
-function AddStep({ inputRef, n }: { inputRef: React.RefObject<HTMLInputElement | null>; n: number }) {
-  const sp = useSpeech()
-  const model = useWhisper()
-  const [text, setText] = useState("")
-  const submit = (ev: React.FormEvent) => {
-    ev.preventDefault()
-    if (!text.trim()) return
-    run(text, "typed")
-    setText("")
-  }
-  return (
-    <div className="mt-2 flex flex-col gap-2">
-      <form onSubmit={submit} className="flex items-center gap-2">
-        <span className="w-9 shrink-0 text-right font-mono text-sm text-muted-foreground tabular-nums">{n}.</span>
-        <Input
-          ref={inputRef}
-          value={text}
-          onChange={(ev) => setText(ev.target.value)}
-          placeholder={sp.listening ? "Listening…" : n === 1 ? "Add a step: “Tempo at 60 BPM”" : "Add a step"}
-          className="h-11 text-base"
-          aria-label="Add a step"
-        />
-        <Button type="submit" variant="outline" size="icon-lg" aria-label="Add" className="size-11"><CornerDownLeftIcon /></Button>
-        {sp.supported && (
-          <Button
-            type="button"
-            variant={sp.listening ? "default" : "outline"}
-            size="icon-lg"
-            className="size-11"
-            aria-label={sp.listening ? "Stop listening" : "Talk"}
-            aria-pressed={sp.listening}
-            onClick={talk}
-          >
-            <MicIcon />
-          </Button>
-        )}
-      </form>
-      <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-2 pl-11 text-sm text-muted-foreground">
-        <span className="min-w-0">
-          {sp.error ? <span className="text-red">Mic: {sp.error}</span>
-            : sp.choice === "whisper" && model.status === "loading" ? <>Downloading the speech model, once… {Math.round(model.progress * 100)}%</>
-            : sp.transcribing ? "Writing it down…"
-            : sp.interim === "…" ? "Hearing you…"
-            : sp.interim ? <span className="text-ink">“{sp.interim}”</span>
-            : sp.listening ? "Listening… finish talking and I'll add it."
-            : sp.supported ? <>Hold <Kbd>V</Kbd> to talk. Say “start” or “stop” to play, “delete 3” or “undo” to edit.</>
-            : "Speech isn't available in this browser. Try Chrome or Safari."}
-        </span>
-        {sp.supported && (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <label className="flex items-center gap-2 select-none">
-              Speech
-              <select
-                value={sp.choice}
-                onChange={(ev) => setChoice(ev.target.value as Choice)}
-                className="border border-ink/40 bg-transparent px-1.5 py-0.5 text-sm outline-none focus-visible:border-blue"
-                title="Whisper runs on this device: a one-time ~100 MB download, then free, private and offline."
-              >
-                <option value="whisper">Whisper (on this device)</option>
-                <option value="browser">Browser</option>
-              </select>
-            </label>
-            {sp.choice === "browser" && sp.hints !== "unsupported" && (
-              <label
-                className={cn("flex items-center gap-2 select-none", sp.hints === "unavailable" ? "opacity-50" : "cursor-pointer")}
-                title="Chrome's on-device speech model, told in advance to expect words like “accent” and “click”. Free, private, works offline."
-              >
-                <input
-                  type="checkbox"
-                  checked={sp.useHints}
-                  disabled={sp.hints === "unavailable" || sp.hints === "installing"}
-                  onChange={(ev) => setUseHints(ev.target.checked)}
-                  className="size-4 accent-blue"
-                />
-                {HINT_LABEL[sp.hints]}
-              </label>
+/* ---------- one block: a sentence with fields in it ---------- */
+function BlockRow({ b, i, blocks, compiled, active }: { b: Block; i: number; blocks: Block[]; compiled: Compiled; active: boolean }) {
+  const set = (patch: Partial<BlockBody>) => updateBlock(b.id, patch)
+  const n = `step ${i + 1}`
+  const body = (() => {
+    switch (b.kind) {
+      case "tempo": return <>Tempo <Num value={b.bpm} min={20} max={400} onChange={(bpm) => set({ bpm })} label={`${n} tempo`} /> bpm</>
+      case "tempoBy": return (
+        <>
+          <Sel value={b.delta < 0 ? "down" : "up"} onChange={(v) => set({ delta: Math.abs(b.delta) * (v === "down" ? -1 : 1) })} label={`${n} direction`}
+            options={[["up", "Speed up"], ["down", "Slow down"]]} />
+          by <Num value={Math.abs(b.delta)} min={1} max={200} onChange={(d) => set({ delta: d * Math.sign(b.delta || 1) })} label={`${n} amount`} /> bpm
+        </>
+      )
+      case "tempoMul": return (
+        <><Sel value={b.factor > 1 ? "2" : "0.5"} onChange={(v) => set({ factor: +v })} label={`${n} change`} options={[["2", "Double"], ["0.5", "Halve"]]} /> the tempo</>
+      )
+      case "meter": return (
+        <>
+          Time <Num value={b.beats} min={1} max={16} onChange={(beats) => set({ beats })} label={`${n} beats per bar`} />/
+          <Sel value={String(b.unit)} onChange={(v) => set({ unit: +v })} label={`${n} beat unit`} options={[["2", "2"], ["4", "4"], ["8", "8"], ["16", "16"]]} />
+        </>
+      )
+      case "accent": {
+        const beats = meterBefore(blocks, i)
+        return (
+          <>
+            Accent
+            <span className="inline-flex gap-1">
+              {Array.from({ length: beats }, (_, k) => {
+                const on = b.beats.includes(k + 1)
+                return (
+                  <button
+                    key={k}
+                    data-field
+                    aria-pressed={on}
+                    aria-label={`${n}: accent beat ${k + 1}`}
+                    onClick={() => set({ beats: on ? b.beats.filter((x) => x !== k + 1) : [...b.beats, k + 1] })}
+                    className={cn(
+                      "grid size-6 place-items-center border border-ink font-mono text-xs tabular-nums focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-blue",
+                      on ? "border-red bg-red text-paper" : "hover:bg-yellow/25",
+                    )}
+                  >
+                    {k + 1}
+                  </button>
+                )
+              })}
+            </span>
+            {!b.beats.length && <span className="text-muted-foreground">(none)</span>}
+          </>
+        )
+      }
+      case "sub": return (
+        <>Subdivide <Sel value={String(b.sub)} onChange={(v) => set({ sub: +v as 1 | 2 | 3 | 4 })} label={`${n} subdivision`}
+          options={([1, 2, 3, 4] as const).map((k) => [String(k), SUB_NAME[k]])} /></>
+      )
+      case "countIn": return (
+        <>Count in <Num value={b.n} min={1} max={32} onChange={(v) => set({ n: v })} label={`${n} count-in length`} />
+          <Sel value={b.unit} onChange={(unit) => set({ unit: unit as "beats" | "bars" })} label={`${n} unit`} options={[["beats", "beats"], ["bars", "bars"]]} /></>
+      )
+      case "play": return (
+        <>
+          <Sel value={b.muted ? "rest" : "click"} onChange={(v) => set({ muted: v === "rest" })} label={`${n} sound`} options={[["click", "Click"], ["rest", "Rest"]]} />
+          for <Num value={b.n} min={1} max={999} onChange={(v) => set({ n: v })} label={`${n} length`} />
+          <Sel value={b.unit} onChange={(unit) => set({ unit: unit as "beats" | "bars" })} label={`${n} unit`} options={[["beats", "beats"], ["bars", "bars"]]} />
+        </>
+      )
+      case "repeat": {
+        const startAt = compiled.loops.get(i)
+        const above = blocks.slice(0, i)
+        return (
+          <>
+            Repeat
+            <Sel value={b.mode} onChange={(mode) => set({ mode: mode as typeof b.mode })} label={`${n} until`}
+              options={[["until", "until"], ["times", "again"], ["forever", "forever"]]} />
+            {b.mode === "until" && <><Num value={b.until} min={20} max={400} onChange={(until) => set({ until })} label={`${n} target tempo`} /> bpm</>}
+            {b.mode === "times" && <><Num value={b.times} min={1} max={99} onChange={(times) => set({ times })} label={`${n} repeats`} /> {b.times === 1 ? "time" : "times"}</>}
+            {above.length > 0 && (
+              <span className="basis-full text-sm text-blue">
+                ↺ back to{" "}
+                <Sel value={startAt !== undefined ? blocks[startAt].id : ""} onChange={(from) => set({ from })} label={`${n} loops back to`}
+                  options={above.map((x, k) => [x.id, `${k + 1}. ${summary(x)}`])} />
+              </span>
             )}
-            <label className="flex cursor-pointer items-center gap-2 select-none">
-              <input type="checkbox" checked={sp.handsFree} onChange={(ev) => setHandsFree(ev.target.checked)} className="size-4 accent-blue" />
-              Hands-free (keeps listening)
-            </label>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Examples() {
+            {compiled.endless.has(i) && (
+              <span className="basis-full text-xs text-red">
+                Nothing in this loop changes the tempo, so it never reaches {b.until}. Add a “Speed up” block inside it.
+              </span>
+            )}
+          </>
+        )
+      }
+    }
+  })()
+  const shape = FAMILY[b.kind]
+  const rest = b.kind === "play" && b.muted
   return (
-    <div>
-      <h2 className="mb-3 text-xs tracking-widest text-muted-foreground uppercase">Steps you can add</h2>
-      <ul className="flex flex-wrap gap-2">
-        {EXAMPLES.map((x) => (
-          <li key={x}>
-            <button
-              onClick={() => addEntry(x)}
-              className="border border-ink/30 px-2.5 py-1 text-left text-sm transition-colors hover:border-ink hover:bg-yellow/25 focus-visible:outline-2 focus-visible:outline-blue"
-            >
-              {x}
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 text-base", active && "font-medium")}>
+      {rest
+        ? <span aria-hidden className="size-2.5 shrink-0 border-2 border-red" />
+        : <Shape kind={shape} className={cn("size-2.5", shape === "triangle" && "size-3")} />}
+      {body}
     </div>
   )
 }
 
-/* ---------- what it heard, what it made of it, and your verdict ---------- */
-function Log() {
-  const log = useReviews()
-  const [copied, setCopied] = useState(false)
-  const wrong = log.filter((l) => l.verdict === "wrong").length
-  const copy = async () => {
-    await navigator.clipboard.writeText(toMarkdown())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+function summary(b: Block): string {
+  switch (b.kind) {
+    case "tempo": return `Tempo ${b.bpm}`
+    case "tempoBy": return `${b.delta < 0 ? "Slow down" : "Speed up"} by ${Math.abs(b.delta)}`
+    case "tempoMul": return b.factor > 1 ? "Double tempo" : "Halve tempo"
+    case "meter": return `Time ${b.beats}/${b.unit}`
+    case "accent": return b.beats.length ? `Accent ${[...b.beats].sort((x, y) => x - y).join(", ")}` : "No accents"
+    case "sub": return `Subdivide ${SUB_NAME[b.sub]}`
+    case "countIn": return `Count in ${b.n} ${b.unit}`
+    case "play": return `${b.muted ? "Rest" : "Click"} for ${b.n} ${b.unit}`
+    case "repeat": return b.mode === "until" ? `Repeat until ${b.until}` : b.mode === "times" ? `Repeat ${b.times} more` : "Repeat forever"
+  }
+}
+
+/** A number inside a block. Type it, or nudge it with ↑/↓ (Shift: by 10). */
+function Num({ value, onChange, min, max, label }: { value: number; onChange: (n: number) => void; min: number; max: number; label: string }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const shown = draft ?? String(value)
+  const clamp = (x: number) => Math.min(max, Math.max(min, x))
+  return (
+    <input
+      inputMode="numeric"
+      aria-label={label}
+      value={shown}
+      onChange={(ev) => {
+        setDraft(ev.target.value)
+        const x = parseInt(ev.target.value, 10)
+        if (!Number.isNaN(x) && x >= min && x <= max) onChange(x)
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(ev) => {
+        if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return
+        ev.preventDefault()
+        setDraft(null)
+        onChange(clamp(value + (ev.key === "ArrowUp" ? 1 : -1) * (ev.shiftKey ? 10 : 1)))
+      }}
+      style={{ width: `${Math.max(2, shown.length) + 1}ch` }}
+      className="border-b-2 border-ink/30 bg-transparent text-center font-mono tabular-nums outline-none hover:border-ink focus:border-blue"
+    />
+  )
+}
+
+function Sel({ value, onChange, options, label }: { value: string; onChange: (v: string) => void; options: (readonly [string, string])[]; label: string }) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(ev) => onChange(ev.target.value)}
+      className="max-w-full cursor-pointer border-b-2 border-ink/30 bg-transparent outline-none hover:border-ink focus:border-blue"
+    >
+      {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  )
+}
+
+/* ---------- the palette: blocks you can add ---------- */
+const PALETTE: [Kind, string, Partial<BlockBody>?][] = [
+  ["tempo", "Tempo"],
+  ["countIn", "Count in"],
+  ["play", "Click"],
+  ["play", "Rest", { muted: true }],
+  ["tempoBy", "Speed up"],
+  ["repeat", "Repeat"],
+  ["accent", "Accent"],
+  ["meter", "Time"],
+  ["sub", "Subdivide"],
+  ["tempoMul", "Double tempo"],
+]
+
+let focusAdded: ((id: string) => void) | null = null
+
+function Palette() {
+  const add = (kind: Kind, extra?: Partial<BlockBody>) => {
+    addBlock(kind, extra)
+    focusAdded?.(getBlocks().at(-1)!.id)
   }
   return (
-    <Panel
-      title={log.length ? `Heard · ${log.length}${wrong ? ` · ${wrong} wrong` : ""}` : "Heard"}
-      action={log.length > 0 && (
-        <div className="flex gap-1">
-          <Button variant="ghost" size="xs" onClick={copy}>{copied ? <CheckIcon /> : <CopyIcon />} {copied ? "Copied" : "Copy"}</Button>
-          <Button variant="ghost" size="xs" onClick={() => confirm("Clear all transcripts and notes?") && clearAll()}>Clear</Button>
-        </div>
-      )}
-    >
-      {!log.length && <p className="text-sm text-muted-foreground">Nothing yet. Everything you say or type is kept here so you can mark what it got wrong.</p>}
-      <ul className="flex flex-col divide-y divide-ink/15">
-        {log.map((l) => <Entry key={l.id} l={l} />)}
+    <Panel title="Blocks">
+      <ul className="flex flex-wrap gap-2 lg:flex-col lg:items-start">
+        {PALETTE.map(([kind, label, extra]) => {
+          const shape = FAMILY[kind]
+          const rest = kind === "play" && extra && "muted" in extra
+          return (
+            <li key={label}>
+              <button
+                onClick={() => add(kind, extra)}
+                className={cn(
+                  "flex items-center gap-2 border border-ink px-2.5 py-1 text-sm",
+                  "transition-[translate,box-shadow] duration-200 ease-[cubic-bezier(.3,1.6,.5,1)] motion-reduce:transition-none",
+                  "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0_var(--color-ink)] focus-visible:outline-2 focus-visible:outline-blue",
+                )}
+              >
+                {rest
+                  ? <span aria-hidden className="size-2.5 border-2 border-red" />
+                  : <Shape kind={shape} className={cn("size-2.5", shape === "triangle" && "size-3")} />}
+                {label}
+              </button>
+            </li>
+          )
+        })}
       </ul>
-    </Panel>
-  )
-}
-
-function Entry({ l }: { l: Review }) {
-  const [open, setOpen] = useState(false)
-  const showNote = open || l.verdict === "wrong" || !!l.note
-  return (
-    <li className="py-3 text-sm first:pt-0">
-      <p className="flex items-start gap-1.5">
-        {l.source === "voice" && <MicIcon className="mt-0.5 size-3.5 shrink-0 text-blue" aria-label="Spoken" />}
-        <span>“{l.transcript}”</span>
-        {l.engine === "whisper" && <span className="ml-auto shrink-0 text-xs tracking-widest text-muted-foreground uppercase" title="Heard by Whisper, on this device">whisper</span>}
-        {l.engine === "on-device" && <span className="ml-auto shrink-0 text-xs tracking-widest text-muted-foreground uppercase" title="Heard by Chrome's on-device model with vocabulary hints">hints</span>}
+      <p className="mt-4 text-sm text-muted-foreground">
+        Circles change a setting. Squares take time. The triangle loops back.
       </p>
-      {l.alternatives && (
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {l.used
-            ? <>picked over “{l.alternatives[0].text}”</>
-            : <>or: {l.alternatives.slice(1).map((a) => `“${a.text}”`).join(", ")}</>}
-        </p>
-      )}
-      <div className="mt-1.5 flex flex-wrap gap-1">
-        {l.understood.flatMap((c, ci) => [
-          ...c.steps.map((s, si) => <span key={`${ci}-${si}`} className="border border-ink px-1.5 py-0.5 text-xs">{s}</span>),
-          ...(c.leftover ? [<span key={`${ci}-?`} className="border border-dashed border-red px-1.5 py-0.5 text-xs text-red" title="Not understood">? {c.leftover}</span>] : []),
-        ])}
-      </div>
-      <div className="mt-1.5 flex items-center gap-1">
-        <p className="mr-auto text-xs text-muted-foreground">{l.outcome}</p>
-        <Verdict on={l.verdict === "right"} onClick={() => setVerdict(l.id, "right")} label="Got it right" className="aria-pressed:bg-blue aria-pressed:border-blue aria-pressed:text-paper">
-          <CheckIcon />
-        </Verdict>
-        <Verdict on={l.verdict === "wrong"} onClick={() => setVerdict(l.id, "wrong")} label="Got it wrong" className="aria-pressed:bg-red aria-pressed:border-red aria-pressed:text-paper">
-          <XIcon />
-        </Verdict>
-        {!showNote && <Button variant="ghost" size="xs" onClick={() => setOpen(true)}>Note</Button>}
-      </div>
-      {showNote && (
-        <textarea
-          defaultValue={l.note}
-          onChange={(ev) => setNote(l.id, ev.target.value)}
-          placeholder="What did you expect it to do?"
-          rows={2}
-          autoFocus={open && !l.note}
-          className="mt-2 w-full resize-y border border-ink/40 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-blue"
-        />
-      )}
-    </li>
-  )
-}
-
-function Verdict({ on, onClick, label, className, children }: { on: boolean; onClick: () => void; label: string; className: string; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      aria-label={label}
-      title={label}
-      className={cn("grid size-6 place-items-center border border-ink/40 transition-colors hover:border-ink focus-visible:outline-2 focus-visible:outline-blue [&_svg]:size-3.5", className)}
-    >
-      {children}
-    </button>
+    </Panel>
   )
 }
 
