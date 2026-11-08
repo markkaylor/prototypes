@@ -226,8 +226,8 @@ function Viewer({ p, kind }: { p: Prototype; kind: ShapeKind }) {
           Full screen <ArrowUpRightIcon className="size-4" />
         </a>
       </div>
-      {/* allow="midi" lets Web MIDI work inside the frame; same-origin frames may use pointer lock. */}
-      <iframe key={p.slug} src={p.url} title={p.title} allow="midi; fullscreen; clipboard-read; clipboard-write" className="w-full flex-1 border-0" />
+      {/* allow="midi" lets Web MIDI work inside the frame, "microphone" lets Mr. Nome listen; same-origin frames may use pointer lock. */}
+      <iframe key={p.slug} src={p.url} title={p.title} allow="midi; microphone; fullscreen; clipboard-read; clipboard-write" className="w-full flex-1 border-0" />
     </div>
   )
 }
