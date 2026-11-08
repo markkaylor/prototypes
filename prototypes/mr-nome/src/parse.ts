@@ -36,38 +36,95 @@ const UNITS: Record<string, number> = {
 const TENS: Record<string, number> = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 }
 const ORD: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9 }
 
-/** "one hundred and twenty" → 120, "one twenty" → 120, "sixty five" → 65. */
+/**
+ * "one hundred and twenty" → 120, "one twenty" → 120, "one twenty five" → 125, "sixty five" → 65.
+ * "four four" stays "4 4" (it's a meter). Every pass consumes at least one token.
+ */
 function wordsToNumbers(s: string): string {
+  const val = (t?: string) => (t === undefined ? undefined : UNITS[t] ?? TENS[t])
+  const toks = s.split(" ")
   const out: string[] = []
-  const toks = s.split(/\s+/)
-  let i = 0
-  const isNum = (t?: string) => t !== undefined && (t in UNITS || t in TENS || t === "hundred" || /^\d+$/.test(t))
-  while (i < toks.length) {
-    if (!isNum(toks[i]) || /^\d+$/.test(toks[i]) && !(toks[i + 1] === "hundred")) { out.push(toks[i++]); continue }
-    let total = 0, cur = 0, consumed = 0
+  for (let i = 0; i < toks.length;) {
+    const start = i
+    let cur = val(toks[i])
+    if (cur === undefined) { out.push(toks[i++]); continue }
+    i++
     while (i < toks.length) {
-      const t = toks[i]
-      if (/^\d+$/.test(t) && consumed === 0) cur = +t
-      else if (t in TENS && cur % 100 === 0) cur += TENS[t]
-      else if (t in UNITS && cur >= 100 && cur % 100 === 0) cur += UNITS[t] // hundred + five / fifteen
-      else if (t in UNITS && UNITS[t] < 10 && cur % 10 === 0 && cur % 100 !== 0) cur += UNITS[t] // twenty + five
-      else if (t in UNITS && consumed === 0) cur = UNITS[t]
-      else if (t in UNITS && UNITS[t] >= 10 && cur > 0 && cur < 10 && consumed === 1) cur = cur * 100 + UNITS[t] // "one fifteen"
-      else if (t in TENS && cur > 0 && cur < 10 && consumed === 1) cur = cur * 100 + TENS[t] // "one twenty"
-      else if (t === "hundred" && cur > 0) cur *= 100
-      else if (t === "and" && cur >= 100 && isNum(toks[i + 1]) && !/^\d+$/.test(toks[i + 1])) { i++; continue }
+      const t = toks[i], v = val(t)
+      if (t === "hundred" && cur >= 1 && cur <= 9) cur *= 100
+      else if (t === "and" && cur >= 100 && cur % 100 === 0 && val(toks[i + 1]) !== undefined) { i++; continue }
+      else if (v === undefined) break
+      else if (cur >= 100 && cur % 100 === 0) cur += v // hundred + five / fifteen / twenty
+      else if (cur % 10 === 0 && cur % 100 >= 20 && v < 10) cur += v // twenty + five, one twenty + five
+      else if (i - start === 1 && cur >= 1 && cur <= 9 && v >= 10) cur = cur * 100 + v // "one twenty", "one fifteen"
       else break
-      consumed++; i++
+      i++
     }
-    total += cur
-    out.push(String(total))
+    out.push(String(cur))
   }
   return out.join(" ")
 }
 
+/**
+ * Many ways to say one thing → one canonical phrase, so the extractors stay small.
+ * Runs after number words become digits. Order matters: longer phrases first.
+ */
+const SYNONYMS: [RegExp, string][] = [
+  // repeats (before "do" becomes "to")
+  [/\bkeep (?:going|at it|clicking) (?=until|till|up to)/g, " repeat "],
+  [/(?:^|(?<=[,;.] ?))again(?=$|[,;.])|\b(?:1|one) more time\b|\b(?:do|play) (?:it|that) again\b/g, " repeat 1 times "],
+  [/\bdo (?:it|that|this) (\d+) times\b/g, " repeat $1 times "],
+  // setting the tempo
+  [/\b(?:can|could|may) (?:i|we) (?:get|have)\b|\bi'?ll take\b/g, " to "],
+  [/\b(?:bring|take|put|move|set|drop|raise|lower|turn|knock|crank|push|pull|slow|speed)(?: it| the tempo| tempo)?(?: (?:up|down|back))? to (?=\d)/g, " to "],
+  [/\b(?:tempo|speed) up\b(?! (?:by )?\d)/g, " faster "],
+  [/\b(?:tempo|speed) down\b(?! (?:by )?\d)/g, " slower "],
+  [/\bgo (?=faster|slower|quicker|up|down)/g, " "],
+  [/\b(?:get rid of|lose|kill|drop|ditch)(?= (?:the )?accents?\b)/g, " no "],
+  [/\bquarter(?: note)? (?:(?:equals|is|at|gets)\b|=)/g, " tempo "],
+  [/\b(?:make it|give me|go to|change (?:the )?(?:tempo|it|bpm) to|set (?:the )?(?:tempo|it|bpm) to|switch to|change to|move to|try|do)\b/g, " to "],
+  // nudging it
+  [/\bquicker\b/g, " faster "],
+  [/\b(?:slow|bring|take) it (?:way|a lot|much) down\b/g, " much slower "],
+  [/\b(?:speed|bring|crank) it (?:way|a lot|much) up\b/g, " much faster "],
+  [/\bspeed (?:it )?up (?:just )?(?:a (?:bit|little|touch|tad)|slightly)\b/g, " a little faster "],
+  [/\bslow (?:it )?down (?:just )?(?:a (?:bit|little|touch|tad)|slightly)\b/g, " a little slower "],
+  [/\b(?:knock|take) off (\d+)|\b(?:knock|take) (\d+) off\b/g, " minus $1$2 "],
+  [/\b(?:bump|kick|pick|push|crank|turn) it up\b/g, " faster "],
+  [/\b(?:take|bring|back|turn|ease) it (?:down|back|off)\b|\bease off\b|\bback off\b/g, " slower "],
+  [/\b(?:a notch|a tad|a hair)\b/g, " "],
+  // accents
+  [/\b(?:emphasi[sz]e|stress|accentuate|highlight)\b/g, " accent "],
+  [/\ball (?:the )?beats? accented\b|\baccent all (?:the )?beats\b/g, " accent every "],
+  [/\bthe (\d|ord\d)/g, " $1"],
+  [/\bbackbeats?\b/g, " 2 and 4 "],
+  // count-in
+  [/\bcount (?:off|us off|me off|it off)\b/g, " countin "],
+  [/\bcount (?=\d)/g, " countin "],
+  [/\b(\d+) (bars?|beats?) (?:to|of|for) countin\b/g, " $1 $2 countin "],
+  // subdivision
+  [/\b(?:click |play )?(?:on )?the ands\b/g, " eighths "],
+  // silence
+  [/\b(\d+) (bars?|beats?) (?:of )?(?:silence|silent|rest|muted?|off)\b/g, " rest $1 $2 "],
+  // transport
+  [/\bstop (?:the )?(?:click|clicking|metronome|playing|it)\b/g, " stop "],
+  [/(?:^|(?<=[,;.] ?))(?:silence|quiet)(?=$|[,;.])/g, " stop "],
+  [/\b(?:stop|end|finish) (?:at|when (?:you|we) (?:reach|hit|get to)) (?=\d)/g, " until "],
+  [/\b(?:let me hear|i want to hear|show me)\b/g, " "],
+  [/\b(?:shh+|hold (?:on|it|up)|kill it|cut it|freeze|wait)\b/g, " stop "],
+  [/\b(?:hit it|kick it|from the top|go ahead|here we go|take it away)\b/g, " start "],
+  // talky filler
+  [/\b(?:that's|that is|it's|it is|i think|actually|alright|all right|now|um+|uh+|like)\b/g, " "],
+]
+
 export function normalize(raw: string): string {
-  let s = " " + raw.toLowerCase() + " "
+  let s = " " + raw.toLowerCase().replace(/’/g, "'") + " "
   s = s.replace(/[“”"!?]/g, " ")
+    .replace(/\ba hundred\b/g, " one hundred ")
+    // speech homophones: "count in for", "accent beat to", "click ate bars"
+    .replace(/\b(count in|count me in|click|play|beats?|accent|repeat|in) (?:for|fore)\b(?=\s*(?:$|[,;.]|bars?|beats?|times|measures?))/g, " $1 four ")
+    .replace(/\b(beats?|accent(?: on)?|and) (?:to|too)\b(?!\s+(?:\d|one|two|three|four|five|six|seven|eight|nine))/g, " $1 two ")
+    .replace(/\bate\b/g, " eight ").replace(/\bwon\b/g, " one ")
     .replace(/\b(?:hey|ok(?:ay)?|please|mister|mr\.?|nome|gnome|metronome|can you|could you|would you|i want(?: you)? to|i'd like to|let's|lets)\b/g, " ")
     .replace(/\bb\.? ?p\.? ?m\.?\b/g, " bpm ")
     .replace(/\bbeats per minute\b/g, " bpm ")
@@ -79,8 +136,11 @@ export function normalize(raw: string): string {
   // ordinals ("first", but keep "eighth notes" as a subdivision)
   s = s.replace(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)\b(?! notes?)/g, (_, w) => ` ord${ORD[w]} `)
   s = s.replace(/-/g, " ").replace(/([,;.])/g, " $1 ").replace(/\s+/g, " ")
-  s = wordsToNumbers(s.trim())
-  return s.replace(/ ([,;.])/g, "$1").replace(/\s+/g, " ").trim()
+  s = wordsToNumbers(s.trim()).replace(/ ([,;.])/g, "$1")
+  for (const [re, to] of SYNONYMS) s = s.replace(re, to).replace(/\s+/g, " ").trim()
+  // "accent 1, 4": a comma inside a list of beats isn't a clause break
+  for (let k = 0; k < 4; k++) s = s.replace(/(\baccent[^,;.]*?(?:\d|ord\d)), (?=\d|ord\d)/, "$1 and ")
+  return s.replace(/\s+/g, " ").trim()
 }
 
 /* ---------- clauses ---------- */
@@ -95,14 +155,38 @@ function splitClauses(s: string): string[] {
 
 const DOWN = /\b(?:decrease|lower|slow(?:er)?|down|drop|minus|subtract|reduce)\b/
 const UNIT = (u?: string): "beats" | "bars" => (u && /beat|click/.test(u) ? "beats" : "bars")
-const FILLER = /\b(?:the|a|an|at|with|me|us|it|to|of|in|on|for|now|and|then|so|just|beat|beats|tempo|time|meter|metre|speed|set|make|give|do|that|this|by|bpm|again|is|be|you|i|we|up|my|start|go)\b/g
+const FILLER = /\b(?:the|a|an|at|with|me|us|it|to|of|in|on|for|now|and|then|so|just|beat|beats|tempo|time|meter|metre|speed|set|make|give|do|that|this|by|bpm|again|is|be|you|i|we|up|my|start|go|signature|switch|change|add|use|some|want|need|only|put|feel|notes?|back|forever|indefinitely|nonstop|please|anything|everything|let|hear)\b/g
+
+/** A tempo outside this is almost certainly a misread ("knock off 10" ≠ tempo 10), so it stays not-understood. */
+const inRange = (bpm: number) => bpm >= 20 && bpm <= 400
 
 type Ex = [RegExp, (m: RegExpMatchArray, clause: string) => Step[]]
 
 /** Extractors run in order; each consumes the span it matched so later ones don't re-read it. */
 const EXTRACTORS: Ex[] = [
+  // "ramp from 80 to 120 over 8 bars" → tempo 80, then +5 every bar until 120
+  [/\b(?:(?:ramp|accelerate|speed up|slow down|build|climb|go)(?: up| down)? )?from (\d+) to (\d+) (?:over|in|across) (\d+) (bars?|beats?)/, (m) => {
+    const from = +m[1], to = +m[2], n = Math.max(1, +m[3])
+    return [
+      { kind: "tempo", bpm: from },
+      { kind: "play", n: 1, unit: UNIT(m[4]) },
+      { kind: "tempoBy", delta: Math.round((to - from) / n) || Math.sign(to - from) },
+      { kind: "repeat", until: to },
+    ]
+  }],
+  // "from 60 to 100 by 10 every 2 bars" → tempo 60, play 2 bars, +10, repeat until 100
+  [/\b(?:from (\d+) )?(?:to|until|till|up to) (\d+)(?: bpm)?,? (?:by|in steps of|going up|going down|adding|up|down) (\d+)(?: bpm)?(?: every (?:(\d+) )?(bars?|beats?))?/, (m, c) => {
+    const from = m[1] ? +m[1] : undefined, to = +m[2]
+    const down = from !== undefined ? to < from : DOWN.test(c)
+    return [
+      ...(from !== undefined ? [{ kind: "tempo", bpm: from } as Step] : []),
+      { kind: "play", n: m[5] ? +(m[4] ?? 1) : 4, unit: m[5] ? UNIT(m[5]) : "bars" },
+      { kind: "tempoBy", delta: +m[3] * (down ? -1 : 1) },
+      { kind: "repeat", until: to },
+    ]
+  }],
   // "go up 5 every 2 bars until 100" → play 2 bars, +5, repeat until 100
-  [/(?:\w+ )?(?:by )?(\d+)(?: bpm)? every (?:(\d+) )?(bars?|beats?)(?: (?:until|till|up to|to|reach(?:ing)?) (\d+)(?: bpm)?)?/, (m, c) => {
+  [/\b(?:(?:speed|slow|go|turn|bump|take)(?: it)? )?(?:(?:up|down|increase|decrease|raise|lower|add|drop|faster|slower|plus|minus) )?(?:the )?(?:tempo |it )?(?:by )?(\d+)(?: bpm)? every (?:(\d+) )?(bars?|beats?)(?: (?:until|till|up to|to|reach(?:ing)?) (\d+)(?: bpm)?)?/, (m, c) => {
     const d = +m[1] * (DOWN.test(c) ? -1 : 1)
     return [
       { kind: "play", n: +(m[2] ?? 1), unit: UNIT(m[3]) },
@@ -110,6 +194,12 @@ const EXTRACTORS: Ex[] = [
       { kind: "repeat", until: m[4] ? +m[4] : undefined },
     ]
   }],
+  // "every 4 bars add 5"
+  [/\bevery (?:(\d+) )?(bars?|beats?),? (add|increase(?: by)?|go up(?: by)?|up|plus|speed up(?: by)?|raise(?: by)?|subtract|drop(?: by)?|go down(?: by)?|down|minus|slow down(?: by)?|lower(?: by)?) (\d+)(?: bpm)?/, (m) => [
+    { kind: "play", n: +(m[1] ?? 1), unit: UNIT(m[2]) },
+    { kind: "tempoBy", delta: +m[4] * (DOWN.test(m[3]) ? -1 : 1) },
+    { kind: "repeat" },
+  ]],
   // count-in
   [/(?:(\d+) (bars?|beats?) )?countin(?: (?:for|with|of) )?(?: ?(\d+))?(?: (bars?|beats?|clicks?))?/, (m) => {
     if (m[1]) return [{ kind: "countIn", n: +m[1], unit: UNIT(m[2]) }]
@@ -117,28 +207,31 @@ const EXTRACTORS: Ex[] = [
     return [{ kind: "countIn", n: 1, unit: "bars" }]
   }],
   // repeat / loop
-  [/\b(?:repeat|loop|again|keep (?:doing|going|repeating) (?:that|this)|do (?:that|it) again|go back)\b(?: (?:it|that|this))?(?: (\d+) (?:more )?times)?(?: (?:until|till|up to|to|reach(?:es)?|hit|get to)(?: you)?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?)?/, (m) => [
+  [/\b(?:repeat|loop(?:ing)?|again|keep (?:looping|repeating)|keep (?:doing|going|repeating) (?:that|this)|do (?:that|it) again|go back)\b(?: (?:it|that|this))?(?: (\d+) (?:more )?times)?(?: (?:until|till|up to|to|reach(?:es)?|hit|get to)(?: (?:you|we))?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?)?/, (m) => [
     { kind: "repeat", times: m[1] ? +m[1] : undefined, until: m[2] ? +m[2] : undefined },
   ]],
-  [/\b(?:until|till|up to)(?: you)?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?/, (m) => [{ kind: "repeat", until: +m[1] }]],
+  [/\b(?:until|till|up to)(?: (?:you|we))?(?: (?:reach|hit|get to))?(?: tempo)? (\d+)(?: bpm)?/, (m) => [{ kind: "repeat", until: +m[1] }]],
   [/\b(\d+) (?:more )?times\b/, (m) => [{ kind: "repeat", times: +m[1] }]],
   // relative tempo
   [/\b(?:increase|raise|bump|add|speed(?: it)? up|go up|turn (?:it )?up|up|faster|plus)(?: the)?(?: tempo| bpm| speed| it)?(?: by)? (\d+)(?: bpm)?/, (m) => [{ kind: "tempoBy", delta: +m[1] }]],
   [/\b(?:decrease|lower|drop|reduce|subtract|slow(?: it)? down|go down|down|slower|minus)(?: the)?(?: tempo| bpm| speed| it)?(?: by)? (\d+)(?: bpm)?/, (m) => [{ kind: "tempoBy", delta: -m[1] }]],
+  [/\b(\d+)(?: bpm)? (faster|slower|quicker)\b/, (m) => [{ kind: "tempoBy", delta: m[2] === "slower" ? -m[1] : +m[1] }]],
   [/\b(?:a lot|much|way) (faster|slower)\b/, (m) => [{ kind: "tempoBy", delta: m[1] === "faster" ? 10 : -10 }]],
-  [/\b(?:a (?:little|bit|touch) |slightly )(faster|slower)\b/, (m) => [{ kind: "tempoBy", delta: m[1] === "faster" ? 2 : -2 }]],
+  [/\b(?:(?:a )?(?:little|bit|touch|tad|hair|smidge)(?: bit)? |slightly )(faster|slower)\b/, (m) => [{ kind: "tempoBy", delta: m[1] === "faster" ? 2 : -2 }]],
   [/\b(faster|slower|speed up|slow down)\b/, (m) => [{ kind: "tempoBy", delta: /faster|up/.test(m[1]) ? 5 : -5 }]],
   [/\bdouble(?: the)? (?:tempo|time|speed)\b|\bdouble it\b/, () => [{ kind: "tempoMul", factor: 2 }]],
   [/\bhalf(?: the)? (?:tempo|time|speed)\b|\bhalve it\b/, () => [{ kind: "tempoMul", factor: 0.5 }]],
   // meter
-  [/\b(\d+) ?(?:\/|over) ?(\d+)\b/, (m) => [{ kind: "meter", meter: { beats: +m[1], unit: +m[2] } }]],
+  [/\b(\d{1,2}) ?(?:\/|over) ?(1|2|4|8|16|32)\b(?! bars?| beats?)/, (m) => [{ kind: "meter", meter: { beats: +m[1], unit: +m[2] } }]],
   [/\b(\d+) (2|4|8|16) (?:time|meter|metre|signature)\b|\bin (\d+) (2|4|8|16)\b/, (m) => [{ kind: "meter", meter: { beats: +(m[1] ?? m[3]), unit: +(m[2] ?? m[4]) } }]],
+  [/(?:^|\bto |\bin )\s*(\d{1,2}) (2|4|8|16)\s*$/, (m) => [{ kind: "meter", meter: { beats: +m[1], unit: +m[2] } }]],
   [/\b(\d+) beats? (?:per|a|in a|to the) bar\b/, (m) => [{ kind: "meter", meter: { beats: +m[1], unit: 4 } }]],
+  [/\bin (\d{1,2})\b(?! ?(?:bars?|beats?|times|\d|\/|over))/, (m) => [{ kind: "meter", meter: { beats: +m[1], unit: 4 } }]],
   [/\bwaltz\b/, () => [{ kind: "meter", meter: { beats: 3, unit: 4 } }]],
   [/\bcommon time\b/, () => [{ kind: "meter", meter: { beats: 4, unit: 4 } }]],
   [/\bcut time\b/, () => [{ kind: "meter", meter: { beats: 2, unit: 2 } }]],
   // accents
-  [/\b(?:no|remove(?: the)?|clear(?: the)?|without|stop|don't|do not|turn off(?: the)?)(?: any)? accent(?:s|ing)?\b|\baccents? off\b/, () => [{ kind: "accent", beats: [] }]],
+  [/\b(?:no|remove(?: the)?|clear(?: the)?|without|stop|don't|do not|turn off)(?: the| any)? accent(?:s|ing)?\b|\baccents? off\b/, () => [{ kind: "accent", beats: [] }]],
   [/\baccent(?:s|ing|uate)?\b(?: on)?(?: the)?(?: beats?)?((?: ?(?:,|and|&)? ?(?:ord\d+|\d+|downbeat|one|every|all|each))+)?(?: beats?)?(?: (?:of|in) (?:the|each|every) bar)?(?: beats?)?/, (m) => {
     if (!m[1]) return [{ kind: "accent", beats: [1] }]
     if (/every|all|each/.test(m[1])) return [{ kind: "accent", beats: "all" }]
@@ -147,20 +240,21 @@ const EXTRACTORS: Ex[] = [
   }],
   [/\b(?:ord(\d) beat|downbeat|backbeat)\b/, (m) => [{ kind: "accent", beats: m[1] ? [+m[1]] : m[0] === "backbeat" ? [2, 4] : [1] }]],
   // subdivision
-  [/\b(?:no subdivisions?|quarters?(?: notes?)?|just (?:the )?beats?)\b/, () => [{ kind: "sub", sub: 1 }]],
-  [/\b(?:eighth|8th|ord8)s?(?: notes?)?\b|\bsubdivide(?: in)?(?: 2| two| halves)?\b/, () => [{ kind: "sub", sub: 2 }]],
-  [/\b(?:triplets?|subdivide in 3)\b/, () => [{ kind: "sub", sub: 3 }]],
-  [/\b(?:sixteenth|16th|ord16)s?(?: notes?)?\b/, () => [{ kind: "sub", sub: 4 }]],
+  [/\b(?:(?:no|turn off|remove|without|drop|stop)(?: the| any)? subdivisions?|subdivisions? off|quarters?(?: notes?)?|just (?:the )?beats?)\b/, () => [{ kind: "sub", sub: 1 }]],
+  // triplets and sixteenths first, so "subdivide in triplets" isn't read as plain "subdivide"
+  [/\b(?:subdivide (?:in(?:to)? )?)?(?:triplets?|(?<=subdivide (?:in(?:to)? )?)3)\b/, () => [{ kind: "sub", sub: 3 }]],
+  [/\b(?:subdivide (?:in(?:to)? )?)?(?:sixteenth|16th|ord16)s?(?: notes?)?\b/, () => [{ kind: "sub", sub: 4 }]],
+  [/\b(?:eighth|8th|ord8)s?(?: notes?)?\b|\bsubdivide(?: in)?(?: 2| halves)?\b/, () => [{ kind: "sub", sub: 2 }]],
   // silent bars (gap-click practice)
   [/\b(?:rest|silence|silent|mute|drop out|gap|quiet)(?: for)? (\d+) (bars?|beats?)\b/, (m) => [{ kind: "play", n: +m[1], unit: UNIT(m[2]), muted: true }]],
   // absolute tempo
-  [/\b(\d+) bpm\b|\b(?:at|from|tempo(?: to| of| at)?|to)(?: tempo)? (\d+)\b(?! (?:bars?|beats?|times))/, (m) => [{ kind: "tempo", bpm: +(m[1] ?? m[2]) }]],
+  [/\b(\d+) bpm\b|\b(?:at|from|tempo(?: to| of| at)?|to)(?: tempo)? (\d{2,3})\b(?! (?:bars?|beats?|times))/, (m) => inRange(+(m[1] ?? m[2])) ? [{ kind: "tempo", bpm: +(m[1] ?? m[2]) }] : []],
   // play for a length
   [/\b(?:click|play|tick|go|run|keep (?:going|clicking))(?:ing)?(?: for)? (\d+)(?: (bars?|beats?|clicks?))?\b/, (m) => [{ kind: "play", n: +m[1], unit: m[2] ? UNIT(m[2]) : "bars" }]],
   [/\b(?:for )?(\d+) (bars?|beats?)\b/, (m) => [{ kind: "play", n: +m[1], unit: UNIT(m[2]) }]],
   // transport
   [/\b(?:stop|halt|pause|enough|shut up|be quiet|end)\b/, () => [{ kind: "stop" }]],
-  [/\b(?:click|play|start|begin|tick|run|resume|keep (?:going|clicking)|go)\b/, () => [{ kind: "start" }]],
+  [/\b(?:click(?:ing)?|play(?:ing)?|start(?:ing)?|begin|tick(?:ing)?|run|resume|keep (?:going|clicking)|go)\b/, () => [{ kind: "start" }]],
   // a bare number in its own clause is a tempo ("sixty")
   [/^\s*(\d{2,3})\s*$/, (m) => [{ kind: "tempo", bpm: +m[1] }]],
 ]
@@ -178,7 +272,9 @@ function parseClause(text: string): Clause {
     for (let guard = 0; guard < 4; guard++) {
       const m = rest.match(re)
       if (!m || m.index === undefined || !m[0].trim()) break
-      found.push({ at: m.index, steps: make(m, text) })
+      const made = make(m, text)
+      if (!made.length) break // the extractor declined: leave the words for the leftover
+      found.push({ at: m.index, steps: made })
       rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index + m[0].length)
     }
   }
@@ -189,13 +285,23 @@ function parseClause(text: string): Clause {
     .sort((a, b) => ORDER[a.s.kind] - ORDER[b.s.kind] || a.i - b.i)
     .map((x) => x.s)
   // "click at 60" plus "click 4" in one clause: the length wins over the bare start
-  const deduped = steps.some((s) => s.kind === "play") ? steps.filter((s) => s.kind !== "start") : steps
+  // and "start clicking" is one start, not two
+  const deduped = (steps.some((s) => s.kind === "play") ? steps.filter((s) => s.kind !== "start") : steps)
+    .filter((s, i, all) => (s.kind !== "start" && s.kind !== "stop") || all.findIndex((x) => x.kind === s.kind) === i)
   const leftover = rest.replace(FILLER, " ").replace(/\s+/g, " ").trim()
   return { text, steps: deduped, leftover }
 }
 
 export function parse(input: string): Parsed {
   const clauses = splitClauses(normalize(input)).map(parseClause)
+  // "every 4 bars add 5, stop at 100": an open repeat followed by "until 100" is one repeat
+  for (let i = 1; i < clauses.length; i++) {
+    const prev = clauses[i - 1].steps, cur = clauses[i].steps
+    const open = prev.at(-1)
+    if (open?.kind === "repeat" && !open.until && !open.times && cur[0]?.kind === "repeat") {
+      Object.assign(open, cur[0]); cur.shift()
+    }
+  }
   return { input, clauses, steps: clauses.flatMap((c) => c.steps) }
 }
 

@@ -17,6 +17,22 @@ Tick **Hands-free** to keep the mic open while the click plays.
 - `src/engine.ts`: Web Audio lookahead scheduler plus a program runner that advances one beat at a time. Commands with a length, count-in or repeat become a **routine** (replaces the current one and runs from the top). Everything else (tempo, meter, accents, feel, faster/slower) changes **on the fly** without restarting.
 - `src/speech.ts`: Web Speech API, push-to-talk or hands-free.
 
+## The phrase corpus
+
+```sh
+pnpm --filter mr-nome test   # vitest, watch mode
+```
+
+- `src/parse.test.ts`: every phrasing the rules are expected to handle (≈190), grouped by intent.
+- `src/heldout.test.ts`: fresh phrasings written *without* looking at the rules. Their pass rate before fixing is the honest coverage number. Once fixed, they move into the corpus and a new round starts.
+
+| Round | Fresh phrasings understood before fixes |
+|---|---|
+| 1 | 22/43 (51%) |
+| 2 | 15/32 (47%) |
+
+Coverage of unseen phrasings didn't improve between rounds, even after fixing every round-1 failure. Each fix covers the phrase in front of it, not the next new one.
+
 `simulate("…")` in `engine.ts` dry-runs a routine with no audio and returns a beat trace.
 
 ## Semantics worth arguing about
