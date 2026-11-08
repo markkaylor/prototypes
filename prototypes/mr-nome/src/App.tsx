@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { CornerDownLeftIcon, MicIcon, PlayIcon, RotateCcwIcon, SquareIcon } from "lucide-react"
+import { CheckIcon, CopyIcon, CornerDownLeftIcon, MicIcon, PlayIcon, RotateCcwIcon, SquareIcon, XIcon } from "lucide-react"
 import { Button } from "@prototypes/ui/components/button"
 import { Input } from "@prototypes/ui/components/input"
 import { Kbd } from "@prototypes/ui/components/kbd"
 import { cn } from "@prototypes/ui/lib/utils"
-import { command, getState, start, toggle, useEngine, type Beat, type LogEntry, type Program } from "./engine"
+import { command, getState, start, toggle, useEngine, type Beat, type Program } from "./engine"
 import { describe, SUB_NAME } from "./parse"
+import { clearAll, run, setNote, setVerdict, toMarkdown, useReviews, type Review } from "./review"
 import { onCommand, setHandsFree, talk, useSpeech } from "./speech"
 
 const SPRING = "transition-transform duration-150 ease-[cubic-bezier(.3,1.6,.5,1)] motion-reduce:transition-none"
@@ -23,7 +24,7 @@ const EXAMPLES = [
   "stop",
 ]
 
-onCommand((t) => command(t, "voice"))
+onCommand((alts) => run(alts[0].text, "voice", alts))
 
 export default function App() {
   const e = useEngine()
@@ -55,7 +56,7 @@ export default function App() {
         </section>
         <aside className="flex min-w-0 flex-col gap-8">
           <ProgramPanel program={e.program} now={e.now} running={e.running} />
-          <Log log={e.log} />
+          <Log />
         </aside>
       </main>
     </div>
@@ -138,7 +139,7 @@ function CommandBar({ inputRef }: { inputRef: React.RefObject<HTMLInputElement |
   const submit = (ev: React.FormEvent) => {
     ev.preventDefault()
     if (!text.trim()) return
-    command(text)
+    run(text, "typed")
     setText("")
   }
   return (
@@ -257,31 +258,89 @@ function ProgramPanel({ program, now, running }: { program: Program | null; now:
   )
 }
 
-/* ---------- what it heard, and what it made of it ---------- */
-function Log({ log }: { log: LogEntry[] }) {
+/* ---------- what it heard, what it made of it, and your verdict ---------- */
+function Log() {
+  const log = useReviews()
+  const [copied, setCopied] = useState(false)
+  const wrong = log.filter((l) => l.verdict === "wrong").length
+  const copy = async () => {
+    await navigator.clipboard.writeText(toMarkdown())
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
   return (
-    <Panel title="Heard">
-      {!log.length && <p className="text-sm text-muted-foreground">Nothing yet.</p>}
-      <ul className="flex flex-col gap-4">
-        {log.map((l) => (
-          <li key={l.id} className="text-sm">
-            <p className="flex items-start gap-1.5">
-              {l.source === "voice" && <MicIcon className="mt-0.5 size-3.5 shrink-0 text-blue" />}
-              <span>“{l.parsed.input}”</span>
-            </p>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {l.parsed.clauses.flatMap((c, ci) => [
-                ...c.steps.map((s, si) => (
-                  <span key={`${ci}-${si}`} className="border border-ink px-1.5 py-0.5 text-xs">{describe(s)}</span>
-                )),
-                ...(c.leftover ? [<span key={`${ci}-?`} className="border border-dashed border-red px-1.5 py-0.5 text-xs text-red" title="Not understood">? {c.leftover}</span>] : []),
-              ])}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{l.outcome}</p>
-          </li>
-        ))}
+    <Panel
+      title={log.length ? `Heard · ${log.length}${wrong ? ` · ${wrong} wrong` : ""}` : "Heard"}
+      action={log.length > 0 && (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="xs" onClick={copy}>{copied ? <CheckIcon /> : <CopyIcon />} {copied ? "Copied" : "Copy"}</Button>
+          <Button variant="ghost" size="xs" onClick={() => confirm("Clear all transcripts and notes?") && clearAll()}>Clear</Button>
+        </div>
+      )}
+    >
+      {!log.length && <p className="text-sm text-muted-foreground">Nothing yet. Everything you say or type is kept here so you can mark what it got wrong.</p>}
+      <ul className="flex flex-col divide-y divide-ink/15">
+        {log.map((l) => <Entry key={l.id} l={l} />)}
       </ul>
     </Panel>
+  )
+}
+
+function Entry({ l }: { l: Review }) {
+  const [open, setOpen] = useState(false)
+  const showNote = open || l.verdict === "wrong" || !!l.note
+  return (
+    <li className="py-3 text-sm first:pt-0">
+      <p className="flex items-start gap-1.5">
+        {l.source === "voice" && <MicIcon className="mt-0.5 size-3.5 shrink-0 text-blue" aria-label="Spoken" />}
+        <span>“{l.transcript}”</span>
+      </p>
+      {l.alternatives && (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          or: {l.alternatives.slice(1).map((a) => `“${a.text}”`).join(", ")}
+        </p>
+      )}
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {l.understood.flatMap((c, ci) => [
+          ...c.steps.map((s, si) => <span key={`${ci}-${si}`} className="border border-ink px-1.5 py-0.5 text-xs">{s}</span>),
+          ...(c.leftover ? [<span key={`${ci}-?`} className="border border-dashed border-red px-1.5 py-0.5 text-xs text-red" title="Not understood">? {c.leftover}</span>] : []),
+        ])}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1">
+        <p className="mr-auto text-xs text-muted-foreground">{l.outcome}</p>
+        <Verdict on={l.verdict === "right"} onClick={() => setVerdict(l.id, "right")} label="Got it right" className="aria-pressed:bg-blue aria-pressed:border-blue aria-pressed:text-paper">
+          <CheckIcon />
+        </Verdict>
+        <Verdict on={l.verdict === "wrong"} onClick={() => setVerdict(l.id, "wrong")} label="Got it wrong" className="aria-pressed:bg-red aria-pressed:border-red aria-pressed:text-paper">
+          <XIcon />
+        </Verdict>
+        {!showNote && <Button variant="ghost" size="xs" onClick={() => setOpen(true)}>Note</Button>}
+      </div>
+      {showNote && (
+        <textarea
+          defaultValue={l.note}
+          onChange={(ev) => setNote(l.id, ev.target.value)}
+          placeholder="What did you expect it to do?"
+          rows={2}
+          autoFocus={open && !l.note}
+          className="mt-2 w-full resize-y border border-ink/40 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-blue"
+        />
+      )}
+    </li>
+  )
+}
+
+function Verdict({ on, onClick, label, className, children }: { on: boolean; onClick: () => void; label: string; className: string; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      aria-label={label}
+      title={label}
+      className={cn("grid size-6 place-items-center border border-ink/40 transition-colors hover:border-ink focus-visible:outline-2 focus-visible:outline-blue [&_svg]:size-3.5", className)}
+    >
+      {children}
+    </button>
   )
 }
 

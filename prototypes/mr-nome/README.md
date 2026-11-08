@@ -17,6 +17,13 @@ Tick **Hands-free** to keep the mic open while the click plays.
 - `src/engine.ts`: Web Audio lookahead scheduler plus a program runner that advances one beat at a time. Commands with a length, count-in or repeat become a **routine** (replaces the current one and runs from the top). Everything else (tempo, meter, accents, feel, faster/slower) changes **on the fly** without restarting.
 - `src/speech.ts`: Web Speech API, push-to-talk or hands-free.
 
+## Reviewing what it heard
+
+Every command you say or type is kept in the **Heard** panel with what it understood. Mark each one ✓ or ✗ and add a note saying what you expected. Voice entries also keep the speech engine's other guesses ("or: …"), which shows when a mishearing was the problem rather than the rules.
+
+- In dev the log is written to `.scratch/mr-nome/transcripts.json` at the repo root (a dev-only endpoint in `vite.config.ts`), so it can be read straight from the repo.
+- It's also kept in localStorage. **Copy** puts a Markdown summary on the clipboard, which works on the deployed site too.
+
 ## The phrase corpus
 
 ```sh

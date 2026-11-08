@@ -31,14 +31,11 @@ export type Pos = {
 
 export type Beat = { time: number; settings: Settings; pos: Pos; accent: boolean; muted: boolean }
 
-export type LogEntry = { id: number; parsed: Parsed; outcome: string; source: "typed" | "voice" }
-
 type State = {
   settings: Settings
   running: boolean
   program: Program | null
   now: Beat | null
-  log: LogEntry[]
 }
 
 const BPM_MIN = 20, BPM_MAX = 400
@@ -49,7 +46,6 @@ let state: State = {
   running: false,
   program: null,
   now: null,
-  log: [],
 }
 const listeners = new Set<() => void>()
 const set = (patch: Partial<State>) => { state = { ...state, ...patch }; listeners.forEach((l) => l()) }
@@ -254,8 +250,8 @@ function applyLive(steps: Step[]) {
 
 /* ---------- commands ---------- */
 
-let logId = 0
-export function command(text: string, source: LogEntry["source"] = "typed") {
+/** Parse and act. Returns what it understood and what it did, for the review log. */
+export function command(text: string): { parsed: Parsed; outcome: string } {
   const parsed = parse(text)
   const steps = parsed.steps
   let outcome: string
@@ -274,7 +270,7 @@ export function command(text: string, source: LogEntry["source"] = "typed") {
     else outcome = wasRunning ? `Changed on the fly: ${steps.map(describe).join(", ")}.` : `Set: ${steps.map(describe).join(", ")}.`
     if (last?.kind === "start" && wasRunning && state.program) { start(null); outcome = "Free clicking." }
   }
-  set({ log: [{ id: ++logId, parsed, outcome, source }, ...state.log].slice(0, 30) })
+  return { parsed, outcome }
 }
 
 /** Dry-run a routine without audio (for poking at the runner from the console: `simulate("…")`). */

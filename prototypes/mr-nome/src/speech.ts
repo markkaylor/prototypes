@@ -5,9 +5,9 @@
 import { useSyncExternalStore } from "react"
 
 type Rec = {
-  lang: string; continuous: boolean; interimResults: boolean
+  lang: string; continuous: boolean; interimResults: boolean; maxAlternatives: number
   start(): void; stop(): void; abort(): void
-  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null
+  onresult: ((e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string; confidence: number }> & { isFinal: boolean }> }) => void) | null
   onend: (() => void) | null
   onerror: ((e: { error: string }) => void) | null
 }
@@ -22,8 +22,10 @@ const set = (p: Partial<State>) => { state = { ...state, ...p }; listeners.forEa
 export const useSpeech = () => useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l) }, () => state)
 
 let rec: Rec | null = null
-let onFinal: (text: string) => void = () => {}
-export const onCommand = (fn: (text: string) => void) => { onFinal = fn }
+export type Heard = { text: string; confidence: number }
+/** Called with the best transcript first, then the engine's other guesses. */
+let onFinal: (alts: Heard[]) => void = () => {}
+export const onCommand = (fn: (alts: Heard[]) => void) => { onFinal = fn }
 
 function begin(continuous: boolean) {
   if (!Ctor) return
@@ -33,11 +35,15 @@ function begin(continuous: boolean) {
   r.lang = "en-US"
   r.continuous = continuous
   r.interimResults = true
+  r.maxAlternatives = 3 // logged, to spot homophones ("for" / "four")
   r.onresult = (e) => {
     let interim = ""
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const res = e.results[i]
-      if (res.isFinal) { set({ interim: "" }); onFinal(res[0].transcript.trim()) }
+      if (res.isFinal) {
+        set({ interim: "" })
+        onFinal(Array.from(res, (a) => ({ text: a.transcript.trim(), confidence: a.confidence })))
+      }
       else interim += res[0].transcript
     }
     if (interim) set({ interim })
