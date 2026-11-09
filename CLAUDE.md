@@ -16,6 +16,7 @@ Every prototype is built with this stack, whatever a skill's default shape says:
 - its `package.json` has a `description` and a `prototype` block: `{ "title", "tags", "created": "YYYY-MM-DD" }`. The gallery reads these.
 - it has a `preview.png` (a 1440×900 screenshot) next to its `package.json` for the card image.
 - its asset URLs work under any base path: `import.meta.env.BASE_URL` in code, relative URLs in the web manifest.
+- if it's installable (a web manifest), the manifest has `"display_override": ["window-controls-overlay"]` and paper (`#F2EDE4`) for `theme_color` and `background_color`, and its top header has the `titlebar` class from `@prototypes/ui`, so the installed window has no coloured title bar.
 - browser features it needs inside the viewer's iframe are listed in the iframe's `allow` attribute in `site/src/App.tsx` (`midi` is already there).
 
 ## Agent skills

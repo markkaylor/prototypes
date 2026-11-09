@@ -1,0 +1,411 @@
+[
+  {
+    "id": "04a8d6a0-9815-460e-a84b-d920b6228ea2",
+    "at": "2026-11-08T15:10:25.854Z",
+    "source": "typed",
+    "transcript": "randomly mute",
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "randomly mute"
+      }
+    ],
+    "outcome": "Added step 6 as text: rephrase it to turn it into a block."
+  },
+  {
+    "id": "82c413e3-9e49-4433-bdd8-29fb03ec3293",
+    "at": "2026-11-08T13:54:25.639Z",
+    "source": "voice",
+    "transcript": "Start at 60 beats per minute Click click click click click click click click click click click click click click click for four beats",
+    "engine": "on-device",
+    "understood": [
+      {
+        "steps": [
+          "tempo 60",
+          "click 4 beats"
+        ],
+        "leftover": "click click click click click click click click click click click"
+      }
+    ],
+    "outcome": "Running it as a routine.",
+    "verdict": "wrong",
+    "note": "I said \"start at 60 beat per minute click for four beats\" but it put click a bunch of time"
+  },
+  {
+    "id": "025a5106-a681-4904-993a-85aa29c995bb",
+    "at": "2026-11-08T13:52:21.487Z",
+    "source": "voice",
+    "transcript": "Start at 60 beats per minutes",
+    "engine": "on-device",
+    "understood": [
+      {
+        "steps": [
+          "click 60 beats"
+        ],
+        "leftover": "per minutes"
+      }
+    ],
+    "outcome": "Running it as a routine."
+  },
+  {
+    "id": "32a84c2e-1a8a-4c0d-a69b-8b20f7ea48e2",
+    "at": "2026-11-08T13:52:11.152Z",
+    "source": "voice",
+    "transcript": "Count count in four beats click click click click for four beats",
+    "engine": "on-device",
+    "understood": [
+      {
+        "steps": [
+          "count in 4 beats",
+          "click 4 beats"
+        ],
+        "leftover": "count"
+      }
+    ],
+    "outcome": "Running it as a routine."
+  },
+  {
+    "id": "7921db60-d485-4924-a2b5-0a99a7e6bce6",
+    "at": "2026-11-08T13:51:57.346Z",
+    "source": "voice",
+    "transcript": "All right start at six bpm 60 beats per minute",
+    "engine": "on-device",
+    "understood": [
+      {
+        "steps": [
+          "start"
+        ],
+        "leftover": "6 60"
+      }
+    ],
+    "outcome": "Clicking."
+  },
+  {
+    "id": "8bb56719-da73-4311-acdb-75ba3698f7a5",
+    "at": "2026-11-08T13:51:09.712Z",
+    "source": "typed",
+    "transcript": "1. Start at 60 bpm, 2. count in 4 beats, 3. click for 4 beats, 5. increase the tempo by 10, repeat from 2. until 120 bpm",
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "1"
+      },
+      {
+        "steps": [
+          "tempo 60",
+          "start"
+        ],
+        "leftover": ""
+      },
+      {
+        "steps": [],
+        "leftover": "2"
+      },
+      {
+        "steps": [
+          "count in 4 beats"
+        ],
+        "leftover": ""
+      },
+      {
+        "steps": [],
+        "leftover": "3"
+      },
+      {
+        "steps": [
+          "click 4 beats"
+        ],
+        "leftover": ""
+      },
+      {
+        "steps": [],
+        "leftover": "5"
+      },
+      {
+        "steps": [
+          "+10 bpm"
+        ],
+        "leftover": ""
+      },
+      {
+        "steps": [
+          "repeat until 120"
+        ],
+        "leftover": "from 2"
+      },
+      {
+        "steps": [],
+        "leftover": ""
+      }
+    ],
+    "outcome": "Running it as a routine.",
+    "verdict": "wrong",
+    "note": "It didn't get the numbers..."
+  },
+  {
+    "id": "15efa32b-fd2f-4958-8c72-94fc08a101b7",
+    "at": "2026-11-08T11:24:11.927Z",
+    "source": "voice",
+    "transcript": "make the food",
+    "alternatives": [
+      {
+        "text": "make the food",
+        "confidence": 0.9249580502510071
+      },
+      {
+        "text": "I'll make the food",
+        "confidence": 0.8956642746925354
+      }
+    ],
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "food"
+      }
+    ],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "f25b0917-be1a-4153-8920-82b35544ee5b",
+    "at": "2026-11-08T11:24:08.783Z",
+    "source": "voice",
+    "transcript": "",
+    "understood": [],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "6ed2cfcd-f9be-4860-bf7e-ed328d7c0b25",
+    "at": "2026-11-08T11:23:32.448Z",
+    "source": "voice",
+    "transcript": "",
+    "understood": [],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "d124bd75-e72c-47f9-b5f6-79f6c3bb8378",
+    "at": "2026-11-08T11:23:09.924Z",
+    "source": "voice",
+    "transcript": "",
+    "understood": [],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "8b662fe1-ebd4-4a6f-9289-c30a6495932d",
+    "at": "2026-11-08T11:21:56.485Z",
+    "source": "voice",
+    "transcript": "yeah sounds like a car out there making this ruckus",
+    "alternatives": [
+      {
+        "text": "yeah sounds like a car out there making this ruckus",
+        "confidence": 0.9392514228820801
+      },
+      {
+        "text": "yeah sounds like a core out there making this ruckus",
+        "confidence": 0.931338906288147
+      },
+      {
+        "text": "yeah sounds like a car out there making this roughly",
+        "confidence": 0.9278773069381714
+      }
+    ],
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "yeah sounds car out there making ruckus"
+      }
+    ],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "97c9ea56-ea8f-4bd2-a819-b41edc5294c4",
+    "at": "2026-11-08T11:21:50.431Z",
+    "source": "voice",
+    "transcript": "what",
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "what"
+      }
+    ],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "3fdbd589-adf6-40a0-9316-896286bbaeb7",
+    "at": "2026-11-08T11:21:48.127Z",
+    "source": "voice",
+    "transcript": "",
+    "understood": [],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "9d0a1ed3-3232-4907-87f9-d80af8636f84",
+    "at": "2026-11-08T11:21:44.363Z",
+    "source": "voice",
+    "transcript": "",
+    "understood": [],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "04ae44e0-ded4-4d3d-8e13-961164ed986f",
+    "at": "2026-11-08T11:21:39.919Z",
+    "source": "voice",
+    "transcript": "action D1",
+    "alternatives": [
+      {
+        "text": "action D1",
+        "confidence": 0.8729461431503296
+      },
+      {
+        "text": "action P1",
+        "confidence": 0.869736909866333
+      },
+      {
+        "text": "xnp1",
+        "confidence": 0.7687045335769653
+      }
+    ],
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "action d1"
+      }
+    ],
+    "outcome": "Didn't catch anything I can do.",
+    "verdict": "wrong",
+    "note": "I said \"accent beat 1\""
+  },
+  {
+    "id": "be98be88-9477-4e9f-aac1-c96e2072f9c8",
+    "at": "2026-11-08T11:21:34.669Z",
+    "source": "voice",
+    "transcript": "a missing with this thing now",
+    "alternatives": [
+      {
+        "text": "a missing with this thing now",
+        "confidence": 0.929854154586792
+      },
+      {
+        "text": "a mess in with this thing now",
+        "confidence": 0.8975157141685486
+      }
+    ],
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "missing thing"
+      }
+    ],
+    "outcome": "Didn't catch anything I can do."
+  },
+  {
+    "id": "f07d3c88-9698-4248-a3b3-7d123c4beec1",
+    "at": "2026-11-08T11:21:29.698Z",
+    "source": "voice",
+    "transcript": "x and B1 only",
+    "alternatives": [
+      {
+        "text": "x and B1 only",
+        "confidence": 0.9306420683860779
+      },
+      {
+        "text": "x and V1 only",
+        "confidence": 0.9036617875099182
+      },
+      {
+        "text": "x and beat one only",
+        "confidence": 0.8425173759460449
+      }
+    ],
+    "understood": [
+      {
+        "steps": [],
+        "leftover": "x"
+      },
+      {
+        "steps": [],
+        "leftover": "b1"
+      }
+    ],
+    "outcome": "Didn't catch anything I can do.",
+    "verdict": "wrong",
+    "note": "I said \"accent beat 1\""
+  },
+  {
+    "id": "04f1a5fd-ef72-4f76-a029-2709901b4347",
+    "at": "2026-11-08T11:21:20.130Z",
+    "source": "voice",
+    "transcript": "start clicking",
+    "understood": [
+      {
+        "steps": [
+          "start"
+        ],
+        "leftover": ""
+      }
+    ],
+    "outcome": "Clicking.",
+    "verdict": "right"
+  },
+  {
+    "id": "797d65c5-ea9c-4eaa-b0bc-8124a61e7f53",
+    "at": "2026-11-08T11:21:13.804Z",
+    "source": "voice",
+    "transcript": "cricket at 80 BPM accent beats 1 and 3",
+    "alternatives": [
+      {
+        "text": "cricket at 80 BPM accent beats 1 and 3",
+        "confidence": 0.9509803056716919
+      },
+      {
+        "text": "cricut at 80 BPM accent beats 1 and 3",
+        "confidence": 0
+      },
+      {
+        "text": "kricket at 80 BPM accent beats 1 and 3",
+        "confidence": 0
+      }
+    ],
+    "understood": [
+      {
+        "steps": [
+          "tempo 80",
+          "accent 1st, 3rd"
+        ],
+        "leftover": "cricket"
+      }
+    ],
+    "outcome": "Set: tempo 80, accent 1st, 3rd.",
+    "verdict": "wrong",
+    "note": "I said \"click at 80 BPM accent beats 1 and 3\""
+  },
+  {
+    "id": "e3a85929-e3cd-4cf9-98d3-7136a9b2bcc4",
+    "at": "2026-11-08T11:21:01.725Z",
+    "source": "voice",
+    "transcript": "start at 60 bpm",
+    "alternatives": [
+      {
+        "text": "start at 60 bpm",
+        "confidence": 0.9514555335044861
+      },
+      {
+        "text": "Stott at 60 bpm",
+        "confidence": 0
+      },
+      {
+        "text": "stot at 60 bpm",
+        "confidence": 0
+      }
+    ],
+    "understood": [
+      {
+        "steps": [
+          "tempo 60",
+          "start"
+        ],
+        "leftover": ""
+      }
+    ],
+    "outcome": "Clicking."
+  }
+]

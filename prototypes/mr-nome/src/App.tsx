@@ -45,14 +45,15 @@ export default function App() {
   }, [])
 
   return (
-    <div className="mx-auto min-h-dvh max-w-6xl px-5 pb-16 sm:px-8">
-      <header className="flex items-baseline justify-between gap-4 border-b-2 border-ink py-5">
-        <h1 className="text-xl font-semibold tracking-tight">Mr. Nome</h1>
+    <div className="min-h-dvh">
+      {/* the same header bar as Nuance: full width, small uppercase title, thin rule */}
+      <header className="titlebar flex items-center justify-between gap-4 border-b px-4 py-2.5">
+        <h1 className="flex h-9 items-center text-sm font-semibold tracking-wide uppercase">Mr. Nome</h1>
         <p className="text-sm text-muted-foreground">A metronome you program</p>
       </header>
 
       {/* one column: display, blocks, routine. Wide: the blocks move to a sticky column on the right */}
-      <main className="grid gap-8 pt-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-x-10">
+      <main className="mx-auto grid max-w-6xl gap-8 px-5 pt-8 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-x-10">
         <div className="min-w-0 lg:col-start-1 lg:row-start-1">
           <Display now={e.now} running={e.running} />
         </div>
@@ -186,7 +187,7 @@ function RoutineBuilder({ now, running }: { now: Beat | null; running: boolean }
 
   return (
     <Panel
-      title="Routine"
+      title="Program"
       action={blocks.length ? (
         <Button variant="ghost" size="xs" onClick={() => confirm("Clear every step?") && clearBlocks()}>Clear</Button>
       ) : (
@@ -278,7 +279,7 @@ function RoutineBuilder({ now, running }: { now: Beat | null; running: boolean }
             <Sel
               value={ending}
               onChange={(v) => setEnd(v as "continue" | "stop")}
-              label="When the routine ends"
+              label="When the program ends"
               options={[["continue", "keep clicking"], ["stop", "stop"]]}
             />
           </p>
@@ -357,8 +358,7 @@ function BlockRow({ b, i, blocks, compiled, active }: { b: Block; i: number; blo
       )
       case "play": return (
         <>
-          <Sel value={b.muted ? "rest" : "click"} onChange={(v) => set({ muted: v === "rest" })} label={`${n} sound`} options={[["click", "Click"], ["rest", "Rest"]]} />
-          for <Num value={b.n} min={1} max={999} onChange={(v) => set({ n: v })} label={`${n} length`} />
+          {b.muted ? "Rest" : "Click"} for <Num value={b.n} min={1} max={999} onChange={(v) => set({ n: v })} label={`${n} length`} />
           <Sel value={b.unit} onChange={(unit) => set({ unit: unit as "beats" | "bars" })} label={`${n} unit`} options={[["beats", "beats"], ["bars", "bars"]]} />
         </>
       )
@@ -487,7 +487,7 @@ function Sel({ value, onChange, options, label }: { value: string; onChange: (v:
 }
 
 /* ---------- the palette: blocks you can add ---------- */
-/** Grouped by shape, in the order of the key under the list: triangles, squares, circle. */
+/** Grouped by shape: triangles (settings), squares (take time), circle (loops back). */
 const PALETTE: [Kind, string, Partial<BlockBody>?][] = [
   ["tempo", "Tempo"],
   ["meter", "Meter"],
@@ -533,9 +533,6 @@ function Palette() {
           )
         })}
       </ul>
-      <p className="mt-4 text-sm text-muted-foreground">
-        Triangles change a setting. Squares take time. Circles loop back.
-      </p>
     </Panel>
   )
 }

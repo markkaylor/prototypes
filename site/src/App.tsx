@@ -200,7 +200,6 @@ function NoteCard({ p, n, kind }: { p: Prototype; n: number; kind: ShapeKind }) 
         </div>
         <h2 className="text-xl font-semibold tracking-tight">{p.title}</h2>
         <p className="line-clamp-2 text-sm text-muted-foreground">{p.description}</p>
-        {!!p.tags.length && <p className="text-xs text-muted-foreground">{p.tags.join(" · ")}</p>}
       </div>
     </a>
   )

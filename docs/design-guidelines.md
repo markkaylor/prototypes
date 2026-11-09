@@ -22,7 +22,7 @@ Paper and ink carry the page. Red, blue and yellow are accents. Tailwind's defau
 - **Flat fills only.** No gradients, blur, glow or soft shadows. When something needs depth, as on hover, use a hard offset shadow in ink.
 - **Contrast:** yellow is never used for text. Text on yellow is ink. Text on red or blue is paper.
 - **Tints** (`bg-yellow/25`, `color-mix` with ink) are fine for quiet areas like grid lines and filled regions.
-- **Data order:** red, blue, yellow, ink (`--chart-1` to `--chart-4`). For example, Swell uses red for CC1 and blue for CC11.
+- **Data order:** red, blue, yellow, ink (`--chart-1` to `--chart-4`). For example, Nuance uses red for CC1 and blue for CC11.
 
 ## Shape
 

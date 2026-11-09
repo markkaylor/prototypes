@@ -117,3 +117,23 @@
     @apply bg-background font-sans text-foreground antialiased;
   }
 }
+
+/*
+ * Installed field notes draw their own title bar: the manifest asks for "window-controls-overlay",
+ * so there's no coloured browser bar, and the app's header sits where it was. Put `titlebar` on that
+ * header: it leaves room for the window buttons (traffic lights on the left, Chrome's menu on the
+ * right) and lets you drag the window by it. In a normal tab it does nothing.
+ */
+@media (display-mode: window-controls-overlay) {
+  .titlebar {
+    padding-left: calc(env(titlebar-area-x, 0px) + 0.5rem);
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.5rem);
+    min-height: env(titlebar-area-height, 0px);
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .titlebar :is(a, button, input, select, textarea, [role="combobox"]) {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}

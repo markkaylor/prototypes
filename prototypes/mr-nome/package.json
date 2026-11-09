@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "A metronome you program. Stack blocks (tempo, count in, click, speed up, repeat) into a practice routine and it plays it, with a playhead on the current block.",
+  "description": "A metronome you program. Stack blocks (tempo, count in, click, repeat) into a practice program, then press start.",
   "prototype": {
     "title": "Mr. Nome",
     "tags": [

@@ -1,5 +1,5 @@
 // PROTOTYPE service worker: network-first, cache fallback so the installed PWA opens offline.
-const C = 'swell-v1';
+const C = 'nuance-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {

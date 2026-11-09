@@ -1,11 +1,11 @@
 {
-  "name": "swell",
+  "name": "nuance",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "description": "A full-screen XY pad for riding CC1 (modulation) and CC11 (expression) from a Mac trackpad over Web MIDI.",
   "prototype": {
-    "title": "Swell",
+    "title": "Nuance",
     "tags": [
       "MIDI",
       "Web MIDI",
