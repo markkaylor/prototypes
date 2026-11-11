@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { CircleHelpIcon } from "lucide-react"
 import { Button } from "@prototypes/ui/components/button"
 import { Kbd } from "@prototypes/ui/components/kbd"
@@ -7,8 +7,8 @@ import { ToggleGroup, ToggleGroupItem } from "@prototypes/ui/components/toggle-g
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@prototypes/ui/components/tooltip"
 import { cn } from "@prototypes/ui/lib/utils"
 import {
-  cycleMode, getState, initMidi, nudge, setCaptured, setChannel, setMode, setOutput, useMidi,
-  type Mode, type State,
+  cycleMode, getState, initMidi, nudge, RECORD_CC, setCaptured, setChannel, setMode, setOutput, triggerRecord,
+  useMidi, type Mode, type State,
 } from "./midi"
 
 const TRAVEL = 420 // px of pointer travel for a full 0–127 sweep
@@ -30,7 +30,12 @@ export default function App() {
     }
     // Tap ⌥ = press and release with no other key in between.
     let altTap = false
-    const onDown = (e: KeyboardEvent) => { altTap = e.key === "Alt" && !e.repeat; if (e.key === "Alt") e.preventDefault() }
+    const onDown = (e: KeyboardEvent) => {
+      altTap = e.key === "Alt" && !e.repeat
+      if (e.key === "Alt") e.preventDefault()
+      // Plain R only, so ⌘R still reloads.
+      if (e.code === "KeyR" && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) triggerRecord()
+    }
     const onUp = (e: KeyboardEvent) => { if (e.key === "Alt" && altTap) cycleMode(); altTap = false }
     const onBlur = () => { altTap = false }
 
@@ -139,6 +144,7 @@ function Help() {
     ["← →", "CC11 · Expression"],
     [<Kbd key="s">⇧</Kbd>, "hold for finer control (⅓ speed)"],
     [<Kbd key="o">⌥</Kbd>, "tap to cycle axis mode"],
+    [<Kbd key="r">R</Kbd>, `record toggle (sends CC${RECORD_CC})`],
     [<Kbd key="e">esc</Kbd>, "release the trackpad"],
   ]
   return (
@@ -155,6 +161,39 @@ function Help() {
             </div>
           ))}
         </dl>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/* ---------- record: a trigger, not a state (Logic doesn't report back whether it's recording) ---------- */
+function RecordButton({ s }: { s: State }) {
+  const [flash, setFlash] = useState(false)
+  useEffect(() => {
+    if (!s.recordPulse) return
+    setFlash(true)
+    const t = setTimeout(() => setFlash(false), 180)
+    return () => clearTimeout(t)
+  }, [s.recordPulse])
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          // Don't let the click steal focus or start a pointer capture.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={triggerRecord}
+          disabled={!s.outputId}
+          className={cn("shrink-0 gap-2 transition-colors", flash && "bg-red text-paper border-red")}
+        >
+          <span className={cn("size-2.5 rounded-full", flash ? "bg-paper" : "bg-red")} />
+          Record <Kbd>R</Kbd>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        Sends CC{RECORD_CC} · in Logic, learn it as "Record Toggle"
       </TooltipContent>
     </Tooltip>
   )
@@ -182,6 +221,8 @@ function BottomBar({ s }: { s: State }) {
         <ToggleGroupItem value="cc1" className="px-3">CC1</ToggleGroupItem>
         <ToggleGroupItem value="cc11" className="px-3">CC11</ToggleGroupItem>
       </ToggleGroup>
+
+      <RecordButton s={s} />
 
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <span className="hidden text-muted-foreground lg:inline">

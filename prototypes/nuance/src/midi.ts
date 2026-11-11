@@ -13,11 +13,13 @@ export type State = {
   outputs: { id: string; name: string }[]
   outputId: string | null
   channel: number
+  /** Bumped on every record trigger, so the button can flash. */
+  recordPulse: number
 }
 
 let state: State = {
   cc1: 64, cc11: 64, mode: "both", captured: false,
-  status: "pending", outputs: [], outputId: null, channel: 0,
+  status: "pending", outputs: [], outputId: null, channel: 0, recordPulse: 0,
 }
 const listeners = new Set<() => void>()
 const set = (patch: Partial<State>) => { state = { ...state, ...patch }; listeners.forEach((l) => l()) }
@@ -29,7 +31,18 @@ export const useMidi = () =>
 let access: MIDIAccess | null = null
 const sent: Record<CC, number> = { 1: -1, 11: -1 }
 
-function send(cc: CC, value: number) {
+/** CC 85 is undefined in the MIDI spec, so it's free to learn in Logic as "Record Toggle". */
+export const RECORD_CC = 85
+
+/** Press and release a virtual button: 127 then 0, like a hardware transport key. */
+export function triggerRecord() {
+  if (!state.outputId) return
+  send(RECORD_CC, 127)
+  setTimeout(() => send(RECORD_CC, 0), 50)
+  set({ recordPulse: state.recordPulse + 1 })
+}
+
+function send(cc: number, value: number) {
   const msg = [0xb0 | state.channel, cc, value]
   try { if (state.outputId) access?.outputs.get(state.outputId)?.send(msg) } catch (e) { console.warn(e) }
 }

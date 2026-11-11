@@ -7,5 +7,8 @@ Run: `pnpm --filter nuance dev`, then open http://localhost:5173 in Chrome or Ed
 - Click anywhere to capture the trackpad. Shift = fine control, Esc = release.
 - Tap ⌥ (or use the mode toggle) to cycle the axis mode: CC1 + CC11 (default) → CC1 → CC11.
 - To get MIDI into your DAW on macOS: Audio MIDI Setup → MIDI Studio → IAC Driver → tick "Device is online".
+- Press R (or the Record button) to toggle your DAW's recording without leaving Nuance. It sends CC85 (127, then 0).
+  In Logic: Logic Pro → Control Surfaces → Learn Assignment for "Record Toggle", then press R in Nuance.
+  Nuance can't see whether Logic is recording, so the button only flashes; watch Logic's transport.
 
 History: the variant exploration (faders + scroll, trackpad + keys, XY pad) is on branch `prototype/midi-cc`.
