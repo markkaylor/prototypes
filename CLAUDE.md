@@ -11,7 +11,7 @@ Every prototype is built with this stack, whatever a skill's default shape says:
 
 ## Site
 
-`site/` is the gallery that hosts every prototype. `pnpm build` builds the site into `dist/` and each prototype into `dist/p/<folder>/`. `pnpm preview` serves the result. A new prototype is ready for the site when:
+`site/` is the gallery that hosts every prototype. `pnpm dev` runs the site with every prototype mounted at `/p/<folder>/`, all with HMR (including edits to `packages/ui`); restart it after adding a prototype folder. It serves on port 5170 in the main checkout and on a fixed per-worktree port (5200–5999, from the worktree path) in a git worktree; `PORT=…` overrides. `pnpm build` builds the site into `dist/` and each prototype into `dist/p/<folder>/`. `pnpm preview` serves the result. A new prototype is ready for the site when:
 
 - its `package.json` has a `description` and a `prototype` block: `{ "title", "tags", "created": "YYYY-MM-DD" }`. The gallery reads these.
 - it has a `preview.png` (a 1440×900 screenshot) next to its `package.json` for the card image.
